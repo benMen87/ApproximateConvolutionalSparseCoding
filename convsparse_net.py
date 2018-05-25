@@ -8,8 +8,8 @@ from torch.nn import functional as F
 import torch.nn.init
 from torch.nn import Parameter
 import numpy as np
-from .common import conv as dp_conv
-from .common import flip
+from common import conv as dp_conv
+from common import flip
 
 
 
@@ -61,7 +61,7 @@ class LISTAConvDictADMM(nn.Module):
     def __init__(self, num_input_channels=3, num_output_channels=3,
                  kc=64, ks=7, ista_iters=3, iter_wieght_share=True,
                  pad='reflection', norm_wieghts=True):
-        super(LISTAConvDict, self).__init__()
+        super(LISTAConvDictADMM, self).__init__()
 
 
         if iter_wieght_share == False:
@@ -97,7 +97,7 @@ class LISTAConvDictADMM(nn.Module):
             pad=pad
         )
 
-        self.mu = Variable(0.6, requires_grad=True)
+        self.mu = Parameter(0.6 * torch.ones(1), requires_grad=True)
 
        # self._init_vars()
 
@@ -115,11 +115,11 @@ class LISTAConvDictADMM(nn.Module):
         sc = self.softthrsh(self.encode_conv(inputs))
 
         for step in range(self._ista_iters):
-             _inputs = self.mu * inputs + (1 - self.mu) * self.decode_conv0(sc)
-
+           
+            _inputs = self.mu * inputs + (1 - self.mu) * self.decode_conv0(sc)
             sc_residual = self.encode_conv(
-                _inputs - self.decode_conv1(sc)
-                )
+               _inputs - self.decode_conv1(sc)
+               )
             sc = self.softthrsh(sc + sc_residual)
         return sc
 

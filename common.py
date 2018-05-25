@@ -1,48 +1,15 @@
+from __future__ import division
 import torch
+from torch.autograd import Variable
 import torch.nn as nn
-from .downsampler import Downsampler
-
-def add_module(self, module):
-    self.add_module(str(len(self) + 1), module)
-    
-torch.nn.Module.add = add_module
-
-class Concat(nn.Module):
-    def __init__(self, dim, *args):
-        super(Concat, self).__init__()
-        self.dim = dim
-
-        for idx, module in enumerate(args):
-            self.add_module(str(idx), module)
-
-    def forward(self, input):
-        inputs = []
-        for module in self._modules.values():
-            inputs.append(module(input))
-
-        return torch.cat(inputs, dim=self.dim)
-
-    def __len__(self):
-        return len(self._modules)
+import numpy as np
 
 
-class GenNoise(nn.Module):
-    def __init__(self, dim2):
-        super(GenNoise, self).__init__()
-        self.dim2 = dim2
+def I(_x): return _x
 
-    def forward(self, input):
-        a = list(input.size())
-        a[1] = self.dim2
-        # print (input.data.type())
+def normilize(_x, _val=255): return _x / _val
 
-        b = torch.zeros(a).type_as(input.data)
-        b.normal_()
-
-        x = torch.autograd.Variable(b)
-
-        return x
-
+def nhwc_to_nchw(_x): return np.transpose(_x, (0, 3, 1, 2))
 
 class Swish(nn.Module):
     """
@@ -101,34 +68,33 @@ def conv(in_f, out_f, kernel_size, stride=1, bias=True, pad='zero', downsample_m
 
     padder = None
     to_pad = int((kernel_size - 1) / 2)
-    if pad == 'reflection' or True:
+    if pad == 'reflection' and False:
         padder = nn.ReflectionPad2d(to_pad)
         to_pad = 0
 
     convolver = nn.Conv2d(in_f, out_f, kernel_size, stride, padding=to_pad, bias=bias)
 
-    #if init_val is not None:
-    #    convolver = init_val
 
     layers = filter(lambda x: x is not None, [padder, convolver, downsampler])
     return nn.Sequential(*layers)
 
 def gaussian(ins, is_training, mean, stddev):
     if is_training:
-        noise = Variable(ins.data.new(ins.size()).normal_(mean, stddev))
+   #     noise = Variable(ins.data.new(ins.size()).normal_(mean, stddev))
+        noise = stddev * torch.randn_like(ins) + mean
         return ins + noise
     return ins
 
 
-def reconsturction_loss(factor=0.2, use_cuda=True):
+def reconsturction_loss(factor=1.0, use_cuda=True):
     from pytorch_msssim import MSSSIM
 
-    msssim = MSSSIM()
+    #msssim = MSSSIM()
     l1 = nn.L1Loss()
     if use_cuda:
-        msssim = msssim.cuda()
+        #msssim = msssim.cuda()
         l1 = l1.cuda()
-    return lambda x, xn: factor * l1(x, xn) + (1 - factor) * (1 - mssim(x, xn))
+    return l1#lambda x, xn: factor * l1(x, xn)  + (1 - factor) * (1 - msssim(x, xn))
     
 
 
