@@ -52,7 +52,7 @@ def maybe_save_model(model, save_path, curr_val, other_values):
     def no_other_values(other_values):
         return len(other_values) == 0
 
-    if no_other_values(other_values) or all([curr_val < x for x in other_values]):
+    if no_other_values(other_values) or all(curr_val < other_values):
         print('saving model...')
         torch.save(model.state_dict(), os.path.join(save_path, 'model_%f'%curr_val))
 
@@ -76,7 +76,7 @@ def train(model, args):
     _train_loss = []
     _valid_loss = []
     running_loss = 0
-    valid_every = int(0.1 * len(train_loader))
+    valid_every = 1#int(0.1 * len(train_loader))
 
     itr = 0
     for e in range(args['epoch']):
@@ -85,13 +85,13 @@ def train(model, args):
             itr += 1
 
             _loss, output = step(model, img, img_n, optimizer, recon_loss)
-            running_loss += _loss
+            running_loss += _loss.cpu().data.numpy()
             if itr % valid_every == 0:
                 _train_loss.append(running_loss / valid_every)
                 _v_loss = run_valid(model, valid_loader, recon_loss)
                 scheduler.step(_v_loss)
-                maybe_save_model(model, args['save_dir'], _v_loss, _valid_loss)
-                _valid_loss.append(_v_loss)
+                maybe_save_model(model, args['save_dir'], _v_loss.cpu().data.numpy(), _valid_loss)
+                _valid_loss.append(_v_loss.cpu().data.numpy())
                 print("epoch {} train loss: {} valid loss: {}".format(e, running_loss / valid_every, _v_loss))
                 running_loss = 0
 
@@ -124,7 +124,7 @@ if __name__ == '__main__':
             'epoch': 10,
             'batch_size': 5,
             'learning_rate': 1e-3,
-            'dataset_path': '/data/hillel/data_sets/pascal320.npz',
+            'dataset_path': './pascal_small.npz',
             'save_dir': os.path.join(FILE_PATH, 'saved_models'),
         },
         'model_args':
