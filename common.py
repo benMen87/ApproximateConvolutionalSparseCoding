@@ -89,12 +89,19 @@ def gaussian(ins, is_training, mean, stddev):
 def reconsturction_loss(factor=1.0, use_cuda=True):
     from pytorch_msssim import MSSSIM
 
-    #msssim = MSSSIM()
+    msssim = MSSSIM()
     l1 = nn.L1Loss()
     if use_cuda:
-        #msssim = msssim.cuda()
+        msssim = msssim.cuda()
         l1 = l1.cuda()
-    return l1#lambda x, xn: factor * l1(x, xn)  + (1 - factor) * (1 - msssim(x, xn))
+    return msssim#lambda x, xn: factor * l1(x, xn)  + (1 - factor) * (1 - msssim(x, xn))
     
-
-
+def psnr(im, recon, verbose=True):
+    im = np.squeeze(im)
+    recon = np.squeeze(recon)
+    MSE = np.sum((im - recon)**2) / (im.shape[0] * im.shape[1])
+    MAX = np.max(im)
+    PSNR = 10 * np.log10(MAX ** 2 / MSE)
+    if verbose:
+        print('PSNR %f'%PSNR)
+    return PSNR
