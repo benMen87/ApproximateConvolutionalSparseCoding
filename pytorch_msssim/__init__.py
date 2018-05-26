@@ -90,6 +90,7 @@ def ssim(img1, img2, window_size=11, size_average=True, full=False):
 
 
 def msssim(img1, img2, window_size=11, size_average=True):
+    print(img1.shape, img2.shape)
     # TODO: fix NAN results
     if img1.size() != img2.size():
         raise RuntimeError('Input images must have the same shape (%s vs. %s).' %
@@ -117,11 +118,13 @@ def msssim(img1, img2, window_size=11, size_average=True):
         img1 = F.avg_pool2d(img1, (2, 2))
         img2 = F.avg_pool2d(img2, (2, 2))
 
-    mssim = torch.cat(mssim)
-    mcs = torch.cat(mcs)
-    return (torch.prod(mcs[0:levels-1] ** weights[0:levels-1]) *
+#    mssim = torch.cat(mssim)
+#    mcs = torch.cat(mcs)
+    value = (torch.prod(mcs[0:levels-1] ** weights[0:levels-1]) *
             (mssim[levels-1] ** weights[levels-1]))
-
+    value[value != value] = 0
+    print(value)
+    return value
 
 class MSSSIM(torch.nn.Module):
     def __init__(self, window_size=11, size_average=True, channel=3):
