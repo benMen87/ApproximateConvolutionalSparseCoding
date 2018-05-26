@@ -87,7 +87,7 @@ def train(model, args):
             _loss, output = step(model, img, img_n, optimizer, recon_loss)
             running_loss += _loss
             if itr % valid_every == 0:
-                _train_loss.append(running_loss / print_every)
+                _train_loss.append(running_loss / valid_every)
                 _v_loss = run_valid(model, valid_loader, recon_loss)
                 scheduler.step(_v_loss)
                 maybe_save_model(model, args['save_dir'], _v_loss, _valid_loss)
