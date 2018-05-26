@@ -92,7 +92,7 @@ def train(model, args):
                 scheduler.step(_v_loss)
                 maybe_save_model(model, args['save_dir'], _v_loss, _valid_loss)
                 _valid_loss.append(_v_loss)
-                print("epoch {} train loss: {} valid loss: {}".format(e, running_loss / print_every, _v_loss))
+                print("epoch {} train loss: {} valid loss: {}".format(e, running_loss / valid_every, _v_loss))
                 running_loss = 0
 
 def build_model(args):
