@@ -51,18 +51,15 @@ def maybe_save_model(model, save_path, curr_val, other_values):
     
     def no_other_values(other_values):
         return len(other_values) == 0
-    print(curr_val, other_values)
     if no_other_values(other_values) or curr_val < other_values:
         print('saving model...')
         torch.save(model.state_dict(), os.path.join(save_path, 'model_%f'%curr_val))
 
 def run_valid(model, data_loader, criterion):
     loss = 0
-    print('HU')
     for img, img_n in data_loader:
         _loss, _ = step(model, img, img_n, criterion=criterion)
         loss += float(_loss)
-    print('H')
 
     _, output = step(model, img, img_n, criterion=criterion)
     np.savez('images', IN=img.data.cpu().numpy(),
