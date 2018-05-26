@@ -60,7 +60,7 @@ class DatasetFromNPZ(data.Dataset):
             _targets = _targets.cuda()
             _inputs = _inputs.cuda()
 
-        return _inputs, _targets
+        return _targets, _inputs
 
     def __len__(self):
         return len(self._targets)

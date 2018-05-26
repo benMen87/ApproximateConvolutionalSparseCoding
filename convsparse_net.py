@@ -17,14 +17,14 @@ class SparseConvAE(nn.Module):
     
     def __init__(self, num_input_channels=3, num_output_channels=3,
                  kc = 64, ks=3, ista_iters=3, iter_wieght_share=True,
-                 pad='reflection', norm_wieghts=True, last=False):
+                 pad='reflection', norm_weights=True, last=False):
 
         super(SparseConvAE, self).__init__()
 
         self.lista_encode = LISTAConvDictADMM(
             num_input_channels=num_input_channels, num_output_channels=num_output_channels,
             kc =kc, ks=ks, ista_iters=ista_iters, iter_wieght_share=iter_wieght_share,
-            pad=pad, norm_wieghts=norm_wieghts
+            pad=pad, norm_weights=norm_weights
         )
         self.lista_decode = dp_conv(
             kc,
@@ -59,13 +59,13 @@ class LISTAConvDictADMM(nn.Module):
     https://arxiv.org/pdf/1711.00328.pdf
     """
     def __init__(self, num_input_channels=3, num_output_channels=3,
-                 kc=64, ks=7, ista_iters=3, iter_wieght_share=True,
-                 pad='reflection', norm_wieghts=True):
+                 kc=64, ks=7, ista_iters=3, iter_weight_share=True,
+                 pad='reflection', norm_weights=True):
+
         super(LISTAConvDictADMM, self).__init__()
-
-
-        if iter_wieght_share == False:
+        if iter_weight_share == False:
             raise NotImplementedError('untied weights is not implemented yet...')
+
         self._ista_iters = ista_iters
         self.softthrsh = SoftshrinkTrainable(Parameter(0.1 * torch.ones(1, kc), requires_grad=True))
 

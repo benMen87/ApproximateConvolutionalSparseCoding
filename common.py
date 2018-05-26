@@ -1,4 +1,5 @@
 from __future__ import division
+import os
 import torch
 from torch.autograd import Variable
 import torch.nn as nn
@@ -9,30 +10,43 @@ def I(_x): return _x
 
 def normilize(_x, _val=255): return _x / _val
 
-def nhwc_to_nchw(_x): return np.transpose(_x, (0, 3, 1, 2))
+def nhwc_to_nchw(_x): 
+    if len(_x.shape) == 3 and (_x.shape[-1] == 1 or _x.shape[-1] == 3): #unsqueeze N dim
+        _x = _x[None, ...]
+    elif len(_x.shape) == 3: #unsqueezed C dim
+        _x = _x[...,None]
+    elif len(_x.shape) == 2:  #unsqueeze N and C dim
+        _x = _x[None,:,:,None]
+    return np.transpose(_x, (0, 3, 1, 2))
 
-class Swish(nn.Module):
-    """
-        https://arxiv.org/abs/1710.05941
-        The hype was so huge that I could not help but try it
-    """
-    def __init__(self):
-        super(Swish, self).__init__()
-        self.s = nn.Sigmoid()
+def logdictargs(fullpath, args):
+    import json
+    with open(fullpath, 'w') as fp:
+        fp.write(json.dumps(args))
 
-    def forward(self, x):
-        return x * self.s(x)
+def get_unique_name(path):
+    idx = 1
+    _path = path
+    while os.path.isdir(_path):
+        _path = '{}_{}'.format(path, idx)
+        idx += 1
+    return _path
 
+def init_model_dir(path, name):
+    full_path = os.path.join(path, name)
+    if not os.path.isdir(path):
+        os.mkdir(path)
+    else:
+        full_path = get_unique_name(full_path)
+    os.mkdir(full_path)
+    return full_path
 
-def act(act_fun = 'LeakyReLU'):
     '''
         Either string defining an activation function or module (e.g. nn.ReLU)
     '''
     if isinstance(act_fun, str):
         if act_fun == 'LeakyReLU':
             return nn.LeakyReLU(0.2, inplace=True)
-        elif act_fun == 'Swish':
-            return Swish()
         elif act_fun == 'ELU':
             return nn.ELU()
         elif act_fun == 'none':
@@ -94,9 +108,10 @@ def reconsturction_loss(factor=1.0, use_cuda=True):
     if use_cuda:
         msssim = msssim.cuda()
         l1 = l1.cuda()
-    return msssim#lambda x, xn: factor * l1(x, xn)  + (1 - factor) * (1 - msssim(x, xn))
-    
+    return l1#lambda x, xn: factor * l1(x, xn)  + (1 - factor) * (1 - msssim(x, xn))
+
 def psnr(im, recon, verbose=True):
+    im.shape
     im = np.squeeze(im)
     recon = np.squeeze(recon)
     MSE = np.sum((im - recon)**2) / (im.shape[0] * im.shape[1])
