@@ -51,7 +51,7 @@ def maybe_save_model(model, save_path, curr_val, other_values):
     
     def no_other_values(other_values):
         return len(other_values) == 0
-    if no_other_values(other_values) or curr_val < other_values:
+    if no_other_values(other_values) or curr_val < min(other_values):
         print('saving model...')
         torch.save(model.state_dict(), os.path.join(save_path, 'model_%f'%curr_val))
 
@@ -63,7 +63,7 @@ def run_valid(model, data_loader, criterion):
 
     _, output = step(model, img, img_n, criterion=criterion)
     np.savez('images', IN=img.data.cpu().numpy(),
-        OUT=output.data.cpu().numpy(), NOIE=img.data.cpu().numpy())
+        OUT=output.data.cpu().numpy(), NOISE=img_n.data.cpu().numpy())
     return loss / len(data_loader)
 
 def train(model, args):
@@ -124,7 +124,7 @@ if __name__ == '__main__':
        'train_args':
         {
             'noise': 20,
-            'epoch': 10,
+            'epoch': 100,
             'batch_size': 5,
             'learning_rate': 1e-3,
             'dataset_path': '/data/hillel/data_sets/pascal320_notst.npz',
@@ -134,7 +134,7 @@ if __name__ == '__main__':
         {
             'num_input_channels': 1,
             'num_output_channels': 1,
-            'kc': 2, 
+            'kc': 64, 
             'ks': 7,
             'ista_iters': 3,
             'iter_weight_share': True,
