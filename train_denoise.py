@@ -7,12 +7,14 @@ from torch import nn
 from torch import optim
 from torch.optim import lr_scheduler
 from convsparse_net import LISTAConvDictADMM
+import common
 from common import save_train, load_train, clean
 from common import gaussian, normilize, nhwc_to_nchw
 from common import reconsturction_loss, init_model_dir
 from datasets import  DatasetFromNPZ
 from torch.utils.data import DataLoader
 import arguments
+import test_denoise
 
 USE_CUDA = torch.cuda.is_available()
 FILE_PATH = os.path.dirname(os.path.abspath(__file__))
@@ -48,24 +50,27 @@ def step(model, img, img_n, optimizer=None, criterion=None):
     return float(output)
 
 def maybe_save_model(model, opt, schd, epoch, save_path, curr_val, other_values):
-    
+    path = ''
     def no_other_values(other_values):
         return len(other_values) == 0
-    if no_other_values(other_values) or curr_val < min(other_values):
+    if no_other_values(other_values) or curr_val > min(other_values):
         print('saving model...')
-        save_train(save_path, model, opt, schd, epoch)
+        path = save_train(save_path, model, opt, schd, epoch)
         clean(save_path, save_count=10)
+    return path
 
 def run_valid(model, data_loader, criterion, logdir):
     loss = 0
+    psnr = 0
     for img, img_n in data_loader:
-        _loss, _ = step(model, img, img_n, criterion=criterion)
+        _loss, _out = step(model, img, img_n, criterion=criterion)
         loss += float(_loss)
+        psnr += common.psnr(img.data.cpu().numpy(), _out.data.cpu().numpy())
 
     _, output = step(model, img, img_n, criterion=criterion)
     np.savez(os.path.join(logdir, 'images'), IN=img.data.cpu().numpy(),
         OUT=output.data.cpu().numpy(), NOISE=img_n.data.cpu().numpy())
-    return loss / len(data_loader)
+    return loss / len(data_loader), psnr / len(data_loader)
 
 def train(model, args):
     
@@ -82,8 +87,9 @@ def train(model, args):
         
     _train_loss = []
     _valid_loss = []
+    _valid_psnr = []
     running_loss = 0
-    valid_every = int(0.1 * len(train_loader))
+    valid_every = 1#int(0.1 * len(train_loader))
 
     itr = 0
     for e in range(args['epoch']):
@@ -94,18 +100,20 @@ def train(model, args):
             _loss, _ = step(model, img, img_n, optimizer, recon_loss)
             running_loss += float(_loss)
 
-            if itr % valid_every == 0:
+            if itr % valid_every == 0 or True:
                 _train_loss.append(running_loss / valid_every)
-                _v_loss = run_valid(model, valid_loader,
+                _v_loss, _v_psnr = run_valid(model, valid_loader,
                         recon_loss,args['save_dir'])
                 scheduler.step(_v_loss)
-                maybe_save_model(model, optimizer,
+                model_path = maybe_save_model(model, optimizer,
                         scheduler, e, args['save_dir'],
-                        _v_loss, _valid_loss)
+                        _v_psnr, _valid_psnr)
                 _valid_loss.append(_v_loss)
-                print("epoch {} train loss: {} valid loss: {}".format(e,
-                    running_loss / valid_every, _v_loss))
+                _valid_psnr.append(_v_psnr)
+                print("epoch {} train loss: {} valid loss: {}, valid psnr: {}".format(e,
+                    running_loss / valid_every, _v_loss, _v_psnr))
                 running_loss = 0
+        return model_path, _valid_loss[-1], _valid_psnr[-1]
 
 def build_model(args):
     model = LISTAConvDictADMM(
@@ -122,41 +130,33 @@ def build_model(args):
 
 def main(args_file):
     args = arguments.load_args(args_file)
-    log_dir, save_dir = init_model_dir(args['train_args']['log_dir'], 'trainSess')
-    arguments.logdictargs(os.path.join(log_dir, 'params.txt'), args)
+    log_dir, save_dir = init_model_dir(args['train_args']['log_dir'], args['train_args']['name'])
+    arguments.logdictargs(os.path.join(log_dir, 'params.json'), args)
     args['train_args']['save_dir'] = save_dir
     args['train_args']['log_dir'] = log_dir
     model = build_model(args['model_args'])
-    train(model, args['train_args'])
+    model_path, valid_loss, valid_psnr = train(model, args['train_args'])
+
+    args['test_args']['load_path'] = model_path
+    args['train_args']['final_loss'] = valid_loss
+    args['train_args']['final_psnr'] = valid_psnr
+    arguments.logdictargs(os.path.join(log_dir, 'params.json'), args)
+
+    psnrs, res = test_denoise.test(args['model_args'],
+         model_path,
+         args['train_args']['noise'], 
+         args['test_args']['testset_path']
+         )
+    args['test_args']['final_psnrs'] = psnrs
+    arguments.logdictargs(os.path.join(log_dir, 'params.json'), args)
+    for idx, ims in enumerate(res):
+       test_denoise.plot_res(ims[0], ims[1], ims[2], idx, args['train_args']['log_dir']
+)
 
 if __name__ == '__main__':
-<<<<<<< 276d6c926762a0105f2dce69396ab672c8fbe17b
-    args = {
-       'train_args':
-        {
-            'noise': 20,
-            'epoch': 100,
-            'batch_size': 5,
-            'learning_rate': 1e-3,
-            'dataset_path': '/data/hillel/data_sets/pascal320_notst.npz',
-            'save_dir': os.path.join(FILE_PATH, 'saved_models'),
-        },
-        'model_args':
-        {
-            'num_input_channels': 1,
-            'num_output_channels': 1,
-            'kc': 64, 
-            'ks': 7,
-            'ista_iters': 3,
-            'iter_weight_share': True,
-        }
-    }
-    main(args)
-=======
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--arg_file', default='')
     arg_file = parser.parse_args().arg_file
 
     main(arg_file)
->>>>>>> reload and save model
