@@ -97,18 +97,18 @@ def gaussian(ins, is_training, mean, stddev):
         return ins + noise
     return ins
 
+#TODO(hillel): this is dangrouse NO default factor val!!!
+def reconsturction_loss(factor=0.2, use_cuda=True):
+    from pytorch_msssim import MSSSIM, SSIM
 
-def reconsturction_loss(factor=1.0, use_cuda=True):
-    from pytorch_msssim import MSSSIM
-
-    msssim = MSSSIM()
+    msssim = SSIM()#MSSSIM()
     l1 = nn.L1Loss()
     if use_cuda:
         msssim = msssim.cuda()
         l1 = l1.cuda()
-    return l1#lambda x, xn: factor * l1(x, xn)  + (1 - factor) * (1 - msssim(x, xn))
+    return lambda x, xn: factor * l1(x, xn)  + (1 - factor) * (1 - msssim(x, xn))
 
-def psnr(im, recon, verbose=True):
+def psnr(im, recon, verbose=False):
     im.shape
     im = np.squeeze(im)
     recon = np.squeeze(recon)
@@ -141,7 +141,7 @@ def save_train(path, model, optimizer, schedular=None, epoch=None):
     if epoch is not None:
         state['epoch'] = epoch
     torch.save(state, os.path.join(path, 'epoch_{}'.format(epoch)))
-
+    return os.path.join(path, 'epoch_{}'.format(epoch))
 
 def load_train(path, model, optimizer, schedular=None):
     state = torch.load(path)
@@ -165,6 +165,6 @@ def save_eval(path, model):
     torch.save(model.state_dict(), path)
 
 def load_eval(path, model):
-    model.load_state_dict(torch.load(path))
+    model.load_state_dict(torch.load(path)['model'])
     model.eval()
 
