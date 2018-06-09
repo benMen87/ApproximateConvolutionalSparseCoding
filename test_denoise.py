@@ -4,6 +4,7 @@ from common import gaussian, normilize, nhwc_to_nchw, to_np
 import numpy as np
 from datasets import DatasetFromFolder
 from torch.utils.data import DataLoader
+import os
 from convsparse_net import LISTAConvDictADMM
 import arguments
 import matplotlib.pyplot as plt
@@ -12,7 +13,7 @@ DEFAULT_IMG_PATH = '/data/hillel/data_sets/test_images/'
 USE_CUDA = torch.cuda.is_available()
 
 
-def plot_res(img, img_n, res, name):
+def plot_res(img, img_n, res, name, log_path):
     
     plt.subplot(131)
     plt.imshow(img, cmap='gray')
@@ -23,16 +24,16 @@ def plot_res(img, img_n, res, name):
     plt.subplot(133)
     plt.imshow(res, cmap='gray')
     plt.title('noise psnr {:.2f}'.format(common.psnr(img, res)))
-    plt.savefig('tmp_log/res_{}'.format(name))
+    plt.savefig(os.path.join(log_path, 'res_{}'.format(name)))
     plt.clf()
    
 
-def test(args, saved_model_path, noise, test_path=DEFAULT_IMG_PATH):
+def test(args, saved_model_path, noise, testset_path):
     
     def pre_process_fn(_x): return normilize(_x, 255) 
     def input_process_fn(_x): return gaussian(_x, is_training=True, mean=0, stddev=normilize(noise, 255))
 
-    test_loader = DatasetFromFolder(test_path,
+    test_loader = DatasetFromFolder(testset_path,
         pre_transform=pre_process_fn, use_cuda=USE_CUDA,
         inputs_transform=input_process_fn)
     test_loader = DataLoader(test_loader)
@@ -70,29 +71,28 @@ def test(args, saved_model_path, noise, test_path=DEFAULT_IMG_PATH):
     print('Avg psnr value is {}'.format(np.mean(psnrs)))
     return psnrs, res_array
 
-def _test(args):
-    mdl_p = args.saved_model_path
-    tst_ims = args.test_im_path
-    _args = arguments.load_args(args.saved_model_args_path)
-    noise = _args.get('misc', {'noise': 20})['noise']
+def _test(args_file):
+    _args = arguments.load_args(args_file)
+    test_args = _args['test_args']
     model_args = _args['model_args']
 
-    if not tst_ims == '':
-        psnr, res = test(model_args, mdl_p, noise, tst_ims)
-    else:
-       psnr, res = test(model_args, mdl_p, noise)
+    mdl_p = test_args['load_path']
+    tst_ims = test_args["testset_path"]
+    noise = test_args['noise']
+
+    if not os.path.isdir(test_args['log_dir']):
+        os.mkdir(test_args['log_dir'])
+    psnr, res = test(model_args, mdl_p, noise, tst_ims)
     for idx, ims in enumerate(res):
-        plot_res(ims[0], ims[1], ims[2], idx)
+        plot_res(ims[0], ims[1], ims[2], idx, test_args['log_dir'])
 
 
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--saved_model_path', '-m', default='/home/hillel/projects/lista_admm/saved_models/trainSess_1/model_0.024123')
-    parser.add_argument('--saved_model_args_path', '-a', default='/home/hillel/projects/lista_admm/saved_models/trainSess_1/params.txt')
-    parser.add_argument('--test_im_path', default='')
-    args = parser.parse_args()
+    parser.add_argument('--arg_file', default='./my_args.json')
+    args_file = parser.parse_args().arg_file
 
-    _test(args)
+    _test(args_file)
 
   
