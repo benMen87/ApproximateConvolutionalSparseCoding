@@ -65,7 +65,6 @@ class LISTAConvDictADMM(nn.Module):
         super(LISTAConvDictADMM, self).__init__()
         if iter_weight_share == False:
             raise NotImplementedError('untied weights is not implemented yet...')
-
         self._ista_iters = ista_iters
         self.softthrsh = SoftshrinkTrainable(Parameter(0.1 * torch.ones(1, kc), requires_grad=True))
 
@@ -136,10 +135,6 @@ class SoftshrinkTrainable(nn.Module):
     Learn threshold (lambda)
     """
     grads = {'thrsh': 0}
-    def save_grad(self, name):
-        def hook(grad):
-            grads[name] = grad
-        return hook
 
     def __init__(self, _lambd):
         super(SoftshrinkTrainable, self).__init__()
