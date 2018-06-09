@@ -7,6 +7,7 @@
          "learning_rate": 1e-3,
          "dataset_path": "/data/hillel/data_sets/pascal320_notst.npz",
          "log_dir": "./saved_models",
+         "name": "test_run",
          "load_path": ""
      },
      "model_args":
@@ -20,5 +21,11 @@
      },
      "test_args":
      {
+        "noise": 20,
+        "log_dir": "./saved_models",
+         "name": "test_run",
+         "load_path": "",
+         "testset_path": "/data/hillel/data_sets/test_images/"
+
      }
 }
