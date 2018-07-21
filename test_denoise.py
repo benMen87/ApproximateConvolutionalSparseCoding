@@ -7,6 +7,8 @@ from torch.utils.data import DataLoader
 import os
 from convsparse_net import LISTAConvDictADMM
 import arguments
+import matplotlib
+#matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 DEFAULT_IMG_PATH = '/data/hillel/data_sets/test_images/'
@@ -14,7 +16,6 @@ USE_CUDA = torch.cuda.is_available()
 
 
 def plot_res(img, img_n, res, name, log_path):
-    
     plt.subplot(131)
     plt.imshow(img, cmap='gray')
     plt.title('clean')
@@ -23,10 +24,11 @@ def plot_res(img, img_n, res, name, log_path):
     plt.title('noise psnr {:.2f}'.format(common.psnr(img, img_n)))
     plt.subplot(133)
     plt.imshow(res, cmap='gray')
+    plt.show()
     plt.title('noise psnr {:.2f}'.format(common.psnr(img, res)))
     plt.savefig(os.path.join(log_path, 'res_{}'.format(name)))
     plt.clf()
-   
+
 
 def test(args, saved_model_path, noise, testset_path):
     
@@ -47,7 +49,7 @@ def test(args, saved_model_path, noise, testset_path):
         iter_weight_share=args['iter_weight_share'],
     )
     common.load_eval(saved_model_path, model)
-    #model.load_state_dict(torch.load(saved_model_path))
+
     if USE_CUDA:
         model = model.cuda()
 

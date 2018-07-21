@@ -92,21 +92,45 @@ def conv(in_f, out_f, kernel_size, stride=1, bias=True, pad='zero', downsample_m
 
 def gaussian(ins, is_training, mean, stddev):
     if is_training:
-   #     noise = Variable(ins.data.new(ins.size()).normal_(mean, stddev))
         noise = stddev * torch.randn_like(ins) + mean
         return ins + noise
     return ins
 
+def delete_pixels(ins, is_training, sample_prob=0.3):
+    if is_training:
+        _sample_prob = torch.Tensor(1)
+        prob_mask = _sample_prob.uniform_(sample_prob) * torch.ones_like(ins)   
+        mask = torch.bernoulli(prob_mask)
+        return ins * mask  + (1 - mask)
+    return ins
+
 #TODO(hillel): this is dangrouse NO default factor val!!!
-def reconsturction_loss(factor=0.2, use_cuda=True):
+def reconsturction_loss(ssim_factor=0.2, use_cuda=True):
     from pytorch_msssim import MSSSIM, SSIM
 
-    msssim = SSIM()#MSSSIM()
+    msssim = MSSSIM()
     l1 = nn.L1Loss()
     if use_cuda:
         msssim = msssim.cuda()
         l1 = l1.cuda()
-    return lambda x, xn: factor * l1(x, xn)  + (1 - factor) * (1 - msssim(x, xn))
+    if ssim_factor > 0:
+       return  lambda x, xn: (1 - ssim_factor) * l1(x, xn)  + ssim_factor * (1 - msssim(x, xn))
+    else:
+        return lambda x, xn: l1(x, xn)
+
+def get_criterion(use_cuda=True, sc_factor=0.01):
+    
+    l1 = nn.L1Loss()
+    l2 = nn.MSELoss()
+
+    if use_cuda:
+        l2 = l2.cuda()
+        l1 = l1.cuda()
+    
+    def total_loss(inputs, target, sc_in, sc_tar):
+        return l1(inputs, target) * (1 - sc_factor) + l2(sc_in, sc_tar) * (sc_factor)
+
+    return total_loss
 
 def psnr(im, recon, verbose=False):
     im.shape
@@ -128,6 +152,7 @@ def clean(save_path, save_count=10):
         return 
     l.sort(key=os.path.getmtime) 
     for f in l[:-save_count]:
+        print('removing', f)
         os.remove(f)
     
 def save_train(path, model, optimizer, schedular=None, epoch=None):
