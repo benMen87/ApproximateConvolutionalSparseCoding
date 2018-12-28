@@ -9,49 +9,8 @@ import torch.nn.init
 from torch.nn import Parameter
 import numpy as np
 from common import conv as dp_conv
-from common import flip
+from common import flip, I
 
-
-
-class SparseConvAE(nn.Module):
-    
-    def __init__(self, num_input_channels=3, num_output_channels=3,
-                 kc = 64, ks=3, ista_iters=3, iter_wieght_share=True,
-                 pad='reflection', norm_weights=True, last=False):
-
-        super(SparseConvAE, self).__init__()
-
-        self.lista_encode = LISTAConvDictADMM(
-            num_input_channels=num_input_channels, num_output_channels=num_output_channels,
-            kc =kc, ks=ks, ista_iters=ista_iters, iter_wieght_share=iter_wieght_share,
-            pad=pad, norm_weights=norm_weights
-        )
-        self.lista_decode = dp_conv(
-            kc,
-            num_input_channels,
-            ks,
-            stride=1,
-            bias=False,
-            pad=pad
-        )
-        self.last = last
-
-    def forward(self, inputs):
-#        print('thrsh mean %f'%np.mean(self.lista_encode.softthrsh._lambd.clamp(0,1).cpu().data.numpy()))
-        non_zero_cnt = np.count_nonzero(inputs.cpu().data.numpy())
-#        print('non zero count: {}'.format(non_zero_cnt))
-        sparse_code = self.lista_encode(inputs)
-#        non_zero_cnt = np.count_nonzero(sparse_code.cpu().data.numpy())
-        result = self.lista_decode(sparse_code)
-#        non_zero_cnt = np.count_nonzero(result.cpu().data.numpy())
-        if self.last:
-            return result
-        else:
-            return result + inputs
-    
-#TODO: 
-#      1. Add mask as input.
-#      2. Add unit norm to filters?
 
 class LISTAConvDictADMM(nn.Module):
     """
@@ -60,7 +19,7 @@ class LISTAConvDictADMM(nn.Module):
     """
     def __init__(self, num_input_channels=3, num_output_channels=3,
                  kc=64, ks=7, ista_iters=3, iter_weight_share=True,
-                 pad='reflection', norm_weights=True):
+                 pad='reflection', norm_weights=True, use_sigmoid=False):
 
         super(LISTAConvDictADMM, self).__init__()
         if iter_weight_share == False:
@@ -96,45 +55,39 @@ class LISTAConvDictADMM(nn.Module):
             pad=pad
         )
 
-        self.mu = Parameter(0.6 * torch.ones(1), requires_grad=True)
+        self.mu = Parameter(0.4 * torch.ones(1), requires_grad=True)
 
-       # self._init_vars()
-
-    def _init_vars(self): 
-        ###################################
-        # Better  Results without this inilization.
-        ##################################
-        wd = self.decode_conv[1].weight.data
-        wd = F.normalize(F.normalize(wd, p=2, dim=2), p=2, dim=3)
-        self.decode_conv[1].weight.data = wd
-        self.encode_conv[1].weight.data = we
+        self.output_act = (I if not use_sigmoid else
+                           torch.nn.Sigmoid())
 
     def forward_enc(self, inputs):
         #print('thersh max: {}\n'.format(np.max(self.softthrsh._lambd.cpu().data.numpy())))
-        sc = self.softthrsh(self.encode_conv(inputs))
-
-        for step in range(self._ista_iters):
-           
-            _inputs = self.mu * inputs + (1 - self.mu) * self.decode_conv0(sc)
+        csc = self.softthrsh(self.encode_conv(inputs))
+        for itr in range(self._ista_iters):
+            _mu = self.mu  / (itr + 1)
+            _inputs = (_mu * inputs + self.decode_conv0(csc)) / (1 + _mu)
             sc_residual = self.encode_conv(
-               _inputs - self.decode_conv1(sc)
-               )
-            sc = self.softthrsh(sc + sc_residual)
-        return sc
+                _inputs - self.decode_conv1(csc)
+            )
+            csc = self.softthrsh(csc + sc_residual)
+        return csc
 
-    def forward_dec(self, sc):
-        return self.decode_conv0(sc)
+    def forward_dec(self, csc):
+        """
+        Decoder foward  csc --> input
+        """
+        return self.decode_conv0(csc)
 
+    #pylint: disable=arguments-differ
     def forward(self, inputs):
-        sc = self.forward_enc(inputs)
-        outputs = self.forward_dec(sc)
-        return outputs
+        csc = self.forward_enc(inputs)
+        outputs = self.output_act(self.forward_dec(csc))
+        return outputs, csc
 
 class SoftshrinkTrainable(nn.Module):
     """
     Learn threshold (lambda)
     """
-    grads = {'thrsh': 0}
 
     def __init__(self, _lambd):
         super(SoftshrinkTrainable, self).__init__()

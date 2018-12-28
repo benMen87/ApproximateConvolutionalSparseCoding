@@ -36,8 +36,7 @@ def init_model_dir(path, name):
     else:
         full_path = get_unique_name(full_path)
     os.mkdir(full_path)
-    os.mkdir(os.path.join(full_path, 'saved'))
-    return full_path, os.path.join(full_path, 'saved')
+    return full_path
 
     '''
         Either string defining an activation function or module (e.g. nn.ReLU)
@@ -105,30 +104,43 @@ def delete_pixels(ins, is_training, sample_prob=0.3):
     return ins
 
 #TODO(hillel): this is dangrouse NO default factor val!!!
-def reconsturction_loss(ssim_factor=0.2, use_cuda=True):
-    from pytorch_msssim import MSSSIM, SSIM
-
-    msssim = MSSSIM()
-    l1 = nn.L1Loss()
-    if use_cuda:
-        msssim = msssim.cuda()
-        l1 = l1.cuda()
-    if ssim_factor > 0:
-       return  lambda x, xn: (1 - ssim_factor) * l1(x, xn)  + ssim_factor * (1 - msssim(x, xn))
+def reconsturction_loss(distance='l1', use_cuda=True):
+    
+    if distance == 'l1':
+        dist = nn.L1Loss()
+    elif distance == 'l2':
+        dist  = nn.MSELoss()
     else:
-        return lambda x, xn: l1(x, xn)
-
-def get_criterion(use_cuda=True, sc_factor=0.01):
-    
-    l1 = nn.L1Loss()
-    l2 = nn.MSELoss()
+        raise ValueError(f"unidentified value {distance}")
 
     if use_cuda:
-        l2 = l2.cuda()
-        l1 = l1.cuda()
-    
-    def total_loss(inputs, target, sc_in, sc_tar):
-        return l1(inputs, target) * (1 - sc_factor) + l2(sc_in, sc_tar) * (sc_factor)
+        dist = dist.cuda()
+    return dist
+
+def get_criterion(losses_types, factors, use_cuda=True):
+
+    losses = []
+    for loss_type in losses_types:
+        losses.append(reconsturction_loss(loss_type))
+
+    if use_cuda:
+        losses = [l.cuda() for l in losses]
+
+    def total_loss(results, targets):
+        """Cacluate total loss
+            total_loss = sum_i losses_i(results_i, targets_i)
+        Args:
+            results(list): nn outputs.
+            targets(list): targets of resluts.
+            factors(list): scales for each loss.
+            losses(list): loss to apply to each result, target element
+
+        """
+        loss_acc = 0
+        for res, tar, fac, loss  in zip(results, targets, factors, losses):
+            _loss = loss(res, tar)
+            loss_acc += _loss * fac
+        return loss_acc
 
     return total_loss
 

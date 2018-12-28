@@ -8,7 +8,7 @@ import os
 from convsparse_net import LISTAConvDictADMM
 import arguments
 import matplotlib
-#matplotlib.use('Agg')
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 DEFAULT_IMG_PATH = '/data/hillel/data_sets/test_images/'
@@ -16,6 +16,11 @@ USE_CUDA = torch.cuda.is_available()
 
 
 def plot_res(img, img_n, res, name, log_path):
+
+    img = np.squeeze(img)
+    img_n = np.squeeze(img_n)
+    res = np.squeeze(res)
+
     plt.subplot(131)
     plt.imshow(img, cmap='gray')
     plt.title('clean')
@@ -25,7 +30,7 @@ def plot_res(img, img_n, res, name, log_path):
     plt.subplot(133)
     plt.imshow(res, cmap='gray')
     plt.show()
-    plt.title('noise psnr {:.2f}'.format(common.psnr(img, res)))
+    plt.title('clean psnr {:.2f}'.format(common.psnr(img, res)))
     plt.savefig(os.path.join(log_path, 'res_{}'.format(name)))
     plt.clf()
 
@@ -57,7 +62,7 @@ def test(args, saved_model_path, noise, testset_path):
     res_array = []
     idx = 0
     for img, img_n in test_loader:
-        output = model(img_n)
+        output, _ = model(img_n)
 
         b = args['ks'] // 2
 
@@ -78,15 +83,14 @@ def _test(args_file):
     test_args = _args['test_args']
     model_args = _args['model_args']
 
-    mdl_p = test_args['load_path']
+    model_path = test_args['load_path']
     tst_ims = test_args["testset_path"]
     noise = test_args['noise']
-
-    if not os.path.isdir(test_args['log_dir']):
-        os.mkdir(test_args['log_dir'])
-    psnr, res = test(model_args, mdl_p, noise, tst_ims)
+    
+    log_dir = os.path.dirname(model_path)
+    psnr, res = test(model_args, model_path, noise, tst_ims)
     for idx, ims in enumerate(res):
-        plot_res(ims[0], ims[1], ims[2], idx, test_args['log_dir'])
+        plot_res(ims[0], ims[1], ims[2], idx, log_dir)
 
 
 if __name__ == '__main__':

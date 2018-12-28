@@ -7,13 +7,14 @@ import torch
 from torch import nn
 from torch import optim
 from torch.optim import lr_scheduler
+from torch.utils.data import DataLoader
 from convsparse_net import LISTAConvDictADMM
 import common
 from common import save_train, load_train, clean
 from common import gaussian, normilize, nhwc_to_nchw
 from common import reconsturction_loss, init_model_dir
+from test_denoise import plot_res
 from datasets import  DatasetFromNPZ
-from torch.utils.data import DataLoader
 import arguments
 import test_denoise
 
@@ -42,54 +43,85 @@ def get_train_valid_loaders(dataset_path, batch_size, noise):
     valid_loader = DataLoader(valid_loader, batch_size=1, shuffle=True)
     return train_loader, valid_loader
 
+
 def step(model, img, img_n, optimizer, criterion):
     """ Train step !!"""
     optimizer.zero_grad()
 
-    output = model(img_n)
-    sc_n = model.forward_enc(img_n)
-    sc_tar = model.forward_enc(img)
+    output, _sc_n = model(img_n)
+#    output, sc_tar = model(img)
 
-    loss = criterion(output[..., 3:-3, 3:-3], img[..., 3:-3, 3:-3], sc_n, sc_tar.data)
+    results = [
+        output[..., 3:-3, 3:-3],
+    ]
+
+    targets = [
+        img[..., 3:-3, 3:-3],
+    ]
+
+    loss = criterion(results, targets)
 
     loss.backward()
     optimizer.step()
+
     return float(loss), output.cpu()
 
-def maybe_save_model(model, opt, schd, epoch, save_path, curr_val,
-        other_values, model_path=None):
+def maybe_save_model(
+        model,
+        opt,
+        schd,
+        epoch,
+        save_path,
+        curr_val,
+        other_values,
+        model_path=None):
     path = model_path if model_path is not None else ''
-    def no_other_values(other_values):
-        return len(other_values) == 0
-    if no_other_values(other_values) or curr_val > max(other_values):
+
+    if not other_values or curr_val > max(other_values):
         path = save_train(save_path, model, opt, schd, epoch)
         print('saving model at path %s'%path)
         clean(save_path, save_count=10)
+
     return path
 
-def run_valid(model, data_loader, criterion, logdir):
+def run_valid(model, data_loader, criterion, logdir, name, should0_plot=False):
+    """
+    Run over whole valid set calculate psnr and critirion loss.
+    """
     loss = 0
     psnr = 0
+
     for img, img_n in data_loader:
-        _out = model(img_n)
-        
+        _out, _ = model(img_n)
         loss += float(criterion(img.data, _out.data))
         psnr += common.psnr(img.data.cpu().numpy(), _out.data.cpu().numpy())
 
-    output = model(img_n)
-    np.savez(os.path.join(logdir, 'images'), IN=img.data.cpu().numpy(),
-        OUT=output.data.cpu().numpy(), NOISE=img_n.data.cpu().numpy())
+    img, img_n = data_loader.dataset[0]
+    output, _ = model(img_n.unsqueeze(0))
+    plot_res(
+        img.data.cpu().numpy(),
+        img_n.data.cpu().numpy(),
+        output.data.cpu().numpy(),
+        name,
+        logdir
+    )
     return loss / len(data_loader), psnr / len(data_loader)
 
 def train(model, args):
-    
+
     optimizer = optim.Adam(model.parameters(), lr=args['learning_rate'])
     scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min', verbose=True)
     train_loader, valid_loader = get_train_valid_loaders(args['dataset_path'], args['batch_size'], args['noise'])
 
     #TODO(hillel): this is ugly fix it!! simple l2 dist for valid more complex for train
-    valid_loss =  reconsturction_loss(ssim_factor=args['ssim_factor'], use_cuda=True)
-    criterion = common.get_criterion() 
+    valid_loss = reconsturction_loss(use_cuda=True)
+
+
+    criterion = common.get_criterion(
+        losses_types=['l1'],
+        factors=[1.0],
+        use_cuda=USE_CUDA
+    )
 
     print('train args:')
     _pprint(args)
@@ -97,7 +129,7 @@ def train(model, args):
     if args['load_path'] != '':
         ld_p = args['load_path']
         print('loading from %s'%ld_p)
-        load_train(ld_p, model, optimizer, scheduler)        
+        load_train(ld_p, model, optimizer, scheduler)
         print('Done!')
 
     model_path = None
@@ -118,12 +150,27 @@ def train(model, args):
 
             if itr % valid_every == 0:
                 _train_loss.append(running_loss / valid_every)
-                _v_loss, _v_psnr = run_valid(model, valid_loader,
-                        valid_loss, args['save_dir'])
+                _v_loss, _v_psnr = run_valid(
+                    model,
+                    valid_loader,
+                    valid_loss,
+                    args['save_dir'],
+                    f'perf_iter{itr}', 
+                    itr == valid_every
+                )
+
                 scheduler.step(_v_loss)
-                model_path = maybe_save_model(model, optimizer,
-                        scheduler, e, args['save_dir'],
-                        _v_psnr, _valid_psnr, model_path)
+
+                model_path = maybe_save_model(
+                    model,
+                    optimizer,
+                    scheduler,
+                    e,
+                    args['save_dir'],
+                    _v_psnr,
+                    _valid_psnr,
+                    model_path
+                )
                 _valid_loss.append(_v_loss)
                 _valid_psnr.append(_v_psnr)
                 print("epoch {} train loss: {} valid loss: {}, valid psnr: {}".format(e,
@@ -143,6 +190,7 @@ def build_model(args):
         ks=args['ks'],
         ista_iters=args['ista_iters'],
         iter_weight_share=args['iter_weight_share'],
+        use_sigmoid=args.get('use_sigmoid', False)
     )
     if USE_CUDA:
         model = model.cuda()
@@ -150,9 +198,9 @@ def build_model(args):
 
 def main(args_file):
     args = arguments.load_args(args_file)
-    log_dir, save_dir = init_model_dir(args['train_args']['log_dir'], args['train_args']['name'])
+    log_dir  = init_model_dir(args['train_args']['log_dir'], args['train_args']['name'])
     arguments.logdictargs(os.path.join(log_dir, 'params.json'), args)
-    args['train_args']['save_dir'] = save_dir
+    args['train_args']['save_dir'] = log_dir
     args['train_args']['log_dir'] = log_dir
     model = build_model(args['model_args'])
     model_path, valid_loss, valid_psnr = train(model, args['train_args'])
@@ -178,7 +226,7 @@ def main(args_file):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--arg_file', default='')
-    arg_file = parser.parse_args().arg_file
+    parser.add_argument('--args_file', default='')
+    arg_file = parser.parse_args().args_file
 
     main(arg_file)
