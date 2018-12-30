@@ -52,6 +52,8 @@ def test(args, saved_model_path, noise, testset_path):
         ks=args['ks'],
         ista_iters=args['ista_iters'],
         iter_weight_share=args['iter_weight_share'],
+        use_sigmoid=args.get('use_sigmoid', False)
+
     )
     common.load_eval(saved_model_path, model)
 
