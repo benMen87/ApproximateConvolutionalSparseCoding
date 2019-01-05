@@ -24,30 +24,23 @@ class LISTAConvDictADMM(nn.Module):
         super(LISTAConvDictADMM, self).__init__()
 
         self._ista_iters = ista_iters
+        self._layers = 1 if iter_weight_share else ista_iters
 
-        if iter_weight_share:
-            self.softthrsh = [
-                SoftshrinkTrainable(
-                    Parameter(0.1 * torch.ones(1,kc), requires_grad=True)
-                )] * ista_iters
-        else:
-            self.softthrsh = [
-                SoftshrinkTrainable(
-                    Parameter(0.1 * torch.ones(1,kc), requires_grad=True)
-                ) for _ in ista_iters]
+        self.softthrsh = nn.ModuleList([
+            SoftshrinkTrainable(
+                Parameter(0.1 * torch.ones(1,kc), requires_grad=True)
+            ) for _ in self._layers])
 
         def build_conv_layer(in_ch, out_ch):
-            if iter_weight_share:
-                return [dp_conv(num_input_channels, in_ch, out_ch,
-                                stride=1, bias=False, pad=pad)] * ista_iters
-            else:
-                return [dp_conv(num_input_channels, in_ch, out_ch,
-                                stride=1, bias=False, pad=pad) for _ in ista_iters]
+            return nn.ModuleList(
+                [dp_conv(num_input_channels, in_ch, out_ch,
+                         stride=1, bias=False, pad=pad) for _ in self._layers])
 
         self.encode_conv = build_conv_layer(num_input_channels, kc)
         self.decode_conv0 = build_conv_layer(kc, num_input_channels)
-        self.decode_conv1 = build_conv_layer(kc, num_input_channels)
-
+        self.decode_conv1 =\
+            dp_conv(num_input_channels, kc, num_input_channels,
+                    stride=1, bias=False, pad=pad)
         self.output_act = (I if not use_sigmoid else
                            torch.nn.Sigmoid())
 
