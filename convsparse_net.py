@@ -2,12 +2,14 @@ from __future__ import print_function
 from numpy.random import normal
 from numpy.linalg import svd
 from math import sqrt
+from itertools import cycle
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
 import torch.nn.init
 from torch.nn import Parameter
 import numpy as np
+
 from common import conv as dp_conv
 from common import flip, I
 
@@ -28,44 +30,53 @@ class LISTAConvDictADMM(nn.Module):
 
         self.softthrsh = nn.ModuleList([
             SoftshrinkTrainable(
-                Parameter(0.1 * torch.ones(1,kc), requires_grad=True)
-            ) for _ in self._layers])
+                Parameter(0.1 * torch.ones(1, kc), requires_grad=True)
+            ) for _ in range(self._layers + 1)])
 
-        def build_conv_layer(in_ch, out_ch):
+        def build_conv_layers(in_ch, out_ch, count):
+            """Conv layer wrapper
+            """
             return nn.ModuleList(
-                [dp_conv(num_input_channels, in_ch, out_ch,
-                         stride=1, bias=False, pad=pad) for _ in self._layers])
+                [dp_conv(in_f=in_ch, out_f=out_ch, kernel_size=ks,
+                         stride=1, bias=False, pad=pad) for _ in
+                 range(count)])
 
-        self.encode_conv = build_conv_layer(num_input_channels, kc)
-        self.decode_conv0 = build_conv_layer(kc, num_input_channels)
-        self.decode_conv1 =\
-            dp_conv(num_input_channels, kc, num_input_channels,
-                    stride=1, bias=False, pad=pad)
-        self.output_act = (I if not use_sigmoid else
-                           torch.nn.Sigmoid())
+        self.encode_conv = build_conv_layers(num_input_channels, kc,
+                                             self._layers + 1)
+        self.decode_conv0 = build_conv_layers(kc, num_input_channels,
+                                              self._layers)
+        self.decode_conv1 = build_conv_layers(kc, num_input_channels,
+                                              1)[0]
+
 
     def forward_enc(self, inputs):
+        """Conv LISTA forwrd pass
+        """
         #print('thersh max: {}\n'.format(np.max(self.softthrsh._lambd.cpu().data.numpy())))
-        csc = self.softthrsh[itr](self.encode_conv[itr](inputs))
-        for itr in range(self._ista_iters):
+        csc = self.softthrsh[0](self.encode_conv[0](inputs))
+
+        for _itr, lyr in\
+            zip(range(self._ista_iters),
+                    cycle(range(self._layers))):
+
             _inputs = inputs
 
-            sc_residual = self.encode_conv[itr](
-                _inputs - self.decode_conv1[itr](csc)
-            )
-            csc = self.softthrsh[itr](csc + sc_residual)
+            sc_residual = self.encode_conv[lyr + 1](
+                _inputs - self.decode_conv0[lyr](csc)
+                )
+            csc = self.softthrsh[lyr + 1](csc + sc_residual)
         return csc
 
     def forward_dec(self, csc):
         """
         Decoder foward  csc --> input
         """
-        return self.decode_conv0(csc)
+        return self.decode_conv1(csc)
 
     #pylint: disable=arguments-differ
     def forward(self, inputs):
         csc = self.forward_enc(inputs)
-        outputs = self.output_act(self.forward_dec(csc))
+        outputs = self.forward_dec(csc)
         return outputs, csc
 
 class SoftshrinkTrainable(nn.Module):
