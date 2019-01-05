@@ -22,54 +22,45 @@ class LISTAConvDictADMM(nn.Module):
                  pad='reflection', norm_weights=True, use_sigmoid=False):
 
         super(LISTAConvDictADMM, self).__init__()
-        if iter_weight_share == False:
-            raise NotImplementedError('untied weights is not implemented yet...')
+
         self._ista_iters = ista_iters
-        self.softthrsh = SoftshrinkTrainable(Parameter(0.1 * torch.ones(1, kc), requires_grad=True))
 
-        self.encode_conv = dp_conv(
-            num_input_channels,
-            kc,
-            ks,
-            stride=1,
-            bias=False,
-            pad=pad
-        )
+        if iter_weight_share:
+            self.softthrsh = [
+                SoftshrinkTrainable(
+                    Parameter(0.1 * torch.ones(1,kc), requires_grad=True)
+                )] * ista_iters
+        else:
+            self.softthrsh = [
+                SoftshrinkTrainable(
+                    Parameter(0.1 * torch.ones(1,kc), requires_grad=True)
+                ) for _ in ista_iters]
 
-        self.decode_conv0 = dp_conv(
-            kc,
-            num_input_channels,
-            ks,
-            stride=1,
-            bias=False,
-            pad=pad
-        )
+        def build_conv_layer(in_ch, out_ch):
+            if iter_weight_share:
+                return [dp_conv(num_input_channels, in_ch, out_ch,
+                                stride=1, bias=False, pad=pad)] * ista_iters
+            else:
+                return [dp_conv(num_input_channels, in_ch, out_ch,
+                                stride=1, bias=False, pad=pad) for _ in ista_iters]
 
-
-        self.decode_conv1 = dp_conv(
-            kc,
-            num_input_channels,
-            ks,
-            stride=1,
-            bias=False,
-            pad=pad
-        )
-
-        self.mu = Parameter(0.4 * torch.ones(1), requires_grad=True)
+        self.encode_conv = build_conv_layer(num_input_channels, kc)
+        self.decode_conv0 = build_conv_layer(kc, num_input_channels)
+        self.decode_conv1 = build_conv_layer(kc, num_input_channels)
 
         self.output_act = (I if not use_sigmoid else
                            torch.nn.Sigmoid())
 
     def forward_enc(self, inputs):
         #print('thersh max: {}\n'.format(np.max(self.softthrsh._lambd.cpu().data.numpy())))
-        csc = self.softthrsh(self.encode_conv(inputs))
+        csc = self.softthrsh[itr](self.encode_conv[itr](inputs))
         for itr in range(self._ista_iters):
-            _mu = self.mu  / (itr + 1)
-            _inputs = (_mu * inputs + self.decode_conv0(csc)) / (1 + _mu)
-            sc_residual = self.encode_conv(
-                _inputs - self.decode_conv1(csc)
+            _inputs = inputs
+
+            sc_residual = self.encode_conv[itr](
+                _inputs - self.decode_conv1[itr](csc)
             )
-            csc = self.softthrsh(csc + sc_residual)
+            csc = self.softthrsh[itr](csc + sc_residual)
         return csc
 
     def forward_dec(self, csc):

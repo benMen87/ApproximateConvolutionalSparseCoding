@@ -36,7 +36,10 @@ def plot_res(img, img_n, res, name, log_path):
 
 
 def test(args, saved_model_path, noise, testset_path):
-    
+    """Run predictable test
+    """
+    torch.manual_seed(7)
+
     def pre_process_fn(_x): return normilize(_x, 255) 
     def input_process_fn(_x): return gaussian(_x, is_training=True, mean=0, stddev=normilize(noise, 255))
 
@@ -88,7 +91,7 @@ def _test(args_file):
     model_path = test_args['load_path']
     tst_ims = test_args["testset_path"]
     noise = test_args['noise']
-    
+
     log_dir = os.path.dirname(model_path)
     psnr, res = test(model_args, model_path, noise, tst_ims)
     for idx, ims in enumerate(res):
