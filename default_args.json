@@ -7,7 +7,7 @@
          "learning_rate": 1e-3,
          "dataset_path": "/data/hillel/data_sets/pascal320_notst.npz",
          "log_dir": "./saved_models",
-         "name": "decress_mu",
+         "name": "shared_layers",
          "ssim_factor": 0,
          "load_path": ""
      },
@@ -17,9 +17,9 @@
          "num_output_channels": 1,
          "kc": 64, 
          "ks": 7,
-         "ista_iters": 3,
+         "ista_iters": 7,
          "iter_weight_share": true,
-         "use_sigmoid": false
+         "share_decoder": false
      },
      "test_args":
      {
@@ -30,4 +30,7 @@
 
      }
 }
+
+
+
 

@@ -5,7 +5,7 @@ import numpy as np
 from datasets import DatasetFromFolder
 from torch.utils.data import DataLoader
 import os
-from convsparse_net import LISTAConvDictADMM
+from convsparse_net import LISTAConvDict
 import arguments
 import matplotlib
 matplotlib.use('Agg')
@@ -40,23 +40,23 @@ def test(args, saved_model_path, noise, testset_path):
     """
     torch.manual_seed(7)
 
-    def pre_process_fn(_x): return normilize(_x, 255) 
+    def pre_process_fn(_x): return normilize(_x, 255)
     def input_process_fn(_x): return gaussian(_x, is_training=True, mean=0, stddev=normilize(noise, 255))
 
-    test_loader = DatasetFromFolder(testset_path,
+    test_loader = DatasetFromFolder(
+        testset_path,
         pre_transform=pre_process_fn, use_cuda=USE_CUDA,
         inputs_transform=input_process_fn)
     test_loader = DataLoader(test_loader)
 
-    model = LISTAConvDictADMM(
+    model = LISTAConvDict(
         num_input_channels=args['num_input_channels'],
         num_output_channels=args['num_output_channels'],
-        kc=args['kc'], 
+        kc=args['kc'],
         ks=args['ks'],
         ista_iters=args['ista_iters'],
         iter_weight_share=args['iter_weight_share'],
-        use_sigmoid=args.get('use_sigmoid', False)
-
+        share_decoder=args['share_decoder']
     )
     common.load_eval(saved_model_path, model)
 

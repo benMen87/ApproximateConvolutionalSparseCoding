@@ -1,16 +1,19 @@
 from __future__ import division
-import os 
+import os
 import pprint
 import sys
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 import torch
 from torch import nn
 from torch import optim
 from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader
-from convsparse_net import LISTAConvDictADMM
+from convsparse_net import LISTAConvDict
 import common
-from common import save_train, load_train, clean
+from common import save_train, load_train, clean, to_np
 from common import gaussian, normilize, nhwc_to_nchw
 from common import reconsturction_loss, init_model_dir
 from test_denoise import plot_res
@@ -26,8 +29,8 @@ def _pprint(stuff):
     pp.pprint(stuff)
 
 def get_train_valid_loaders(dataset_path, batch_size, noise):
-   
-    def pre_process_fn(_x): return normilize(nhwc_to_nchw(_x), 255) 
+
+    def pre_process_fn(_x): return normilize(nhwc_to_nchw(_x), 255)
     def input_process_fn(_x): return gaussian(_x, is_training=True, mean=0, stddev=normilize(noise, 255))
 
     train_loader = DatasetFromNPZ(npz_path=dataset_path,
@@ -44,7 +47,7 @@ def get_train_valid_loaders(dataset_path, batch_size, noise):
     return train_loader, valid_loader
 
 
-def step(model, img, img_n, optimizer, criterion):
+def step(model, img, img_n, optimizer, criterion, compare_loss_thrsh=1e7):
     """ Train step !!"""
     optimizer.zero_grad()
 
@@ -60,10 +63,13 @@ def step(model, img, img_n, optimizer, criterion):
     ]
 
     loss = criterion(results, targets)
-
     loss.backward()
-    optimizer.step()
 
+    if float(loss) - float(compare_loss_thrsh) < 1e-3:
+        optimizer.step()
+    else:
+        print(f'loss is {float(loss)} where compare loss is {compare_loss_thrsh} not running'
+               +' bp')
     return float(loss), output.cpu()
 
 def maybe_save_model(
@@ -84,7 +90,7 @@ def maybe_save_model(
 
     return path
 
-def run_valid(model, data_loader, criterion, logdir, name, should0_plot=False):
+def run_valid(model, data_loader, criterion, logdir, name, should_plot=False):
     """
     Run over whole valid set calculate psnr and critirion loss.
     """
@@ -93,19 +99,35 @@ def run_valid(model, data_loader, criterion, logdir, name, should0_plot=False):
 
     for img, img_n in data_loader:
         _out, _ = model(img_n)
+        np_output = np.clip(to_np(_out), 0, 1)
         loss += float(criterion(img.data, _out.data))
-        psnr += common.psnr(img.data.cpu().numpy(), _out.data.cpu().numpy())
+        psnr += common.psnr(img.data.cpu().numpy(), np_output)
 
     img, img_n = data_loader.dataset[0]
     output, _ = model(img_n.unsqueeze(0))
-    plot_res(
-        img.data.cpu().numpy(),
-        img_n.data.cpu().numpy(),
-        output.data.cpu().numpy(),
-        name,
-        logdir
-    )
+    if should_plot:
+        plot_res(
+            img.data.cpu().numpy(),
+            img_n.data.cpu().numpy(),
+            output.data.cpu().numpy(),
+            name,
+            logdir
+        )
     return loss / len(data_loader), psnr / len(data_loader)
+
+def plot_losses(train_loss, valid_loss, valid_psnr, path):
+    plt.plot(valid_psnr)
+    plt.title('valid_psnr')
+    plt.savefig(os.path.join(path, 'valid_psnr'))
+    plt.clf()
+
+    loss_len = range(len(train_loss))
+    plt.plot(loss_len, train_loss, 'r', label='train-loss')
+    plt.plot(loss_len, valid_loss, 'b', label='valid-loss')
+    plt.title('losses')
+    plt.legend(loc='upper left')
+    plt.savefig(os.path.join(path, 'losses'))
+    plt.clf()
 
 def train(model, args):
 
@@ -137,6 +159,7 @@ def train(model, args):
     _valid_loss = []
     _valid_psnr = []
     running_loss = 0
+    compare_loss = 1
     valid_every = int(0.05 * len(train_loader))
 
     itr = 0
@@ -145,8 +168,10 @@ def train(model, args):
         for img, img_n in train_loader:
             itr += 1
 
-            _loss, _ = step(model, img, img_n, optimizer, criterion=criterion)
+            _loss, _ = step(model, img, img_n, optimizer, criterion=criterion,
+                            compare_loss_thrsh=compare_loss)
             running_loss += float(_loss)
+            compare_loss += 1e-1 * float(_loss)
 
             if itr % valid_every == 0:
                 _train_loss.append(running_loss / valid_every)
@@ -155,7 +180,7 @@ def train(model, args):
                     valid_loader,
                     valid_loss,
                     args['save_dir'],
-                    f'perf_iter{itr}', 
+                    f'perf_iter{itr}',
                     itr == valid_every
                 )
 
@@ -176,6 +201,8 @@ def train(model, args):
                 print("epoch {} train loss: {} valid loss: {}, valid psnr: {}".format(e,
                     running_loss / valid_every, _v_loss, _v_psnr))
                 running_loss = 0
+
+    plot_losses(_train_loss, _valid_loss, _valid_psnr, args['save_dir'])
     return model_path, _valid_loss[-1], _valid_psnr[-1]
 
 def build_model(args):
@@ -183,17 +210,21 @@ def build_model(args):
     print("model args")
     _pprint(args)
 
-    model = LISTAConvDictADMM(
+    model = LISTAConvDict(
         num_input_channels=args['num_input_channels'],
         num_output_channels=args['num_output_channels'],
         kc=args['kc'], 
         ks=args['ks'],
         ista_iters=args['ista_iters'],
         iter_weight_share=args['iter_weight_share'],
-        use_sigmoid=args.get('use_sigmoid', False)
+        share_decoder=args['share_decoder']
     )
     if USE_CUDA:
         model = model.cuda()
+
+    print('parameter count {}'.format(common.count_parameters(model)))
+    print(model)
+
     return model
 
 def main(args_file):

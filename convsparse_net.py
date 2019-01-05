@@ -14,24 +14,33 @@ from common import conv as dp_conv
 from common import flip, I
 
 
-class LISTAConvDictADMM(nn.Module):
+class LISTAConvDict(nn.Module):
     """
     LISTA ConvDict encoder based on paper:
     https://arxiv.org/pdf/1711.00328.pdf
     """
     def __init__(self, num_input_channels=3, num_output_channels=3,
                  kc=64, ks=7, ista_iters=3, iter_weight_share=True,
-                 pad='reflection', norm_weights=True, use_sigmoid=False):
+                 share_decoder=False,
+                 pad='reflection'):
 
-        super(LISTAConvDictADMM, self).__init__()
+        super(LISTAConvDict, self).__init__()
 
         self._ista_iters = ista_iters
         self._layers = 1 if iter_weight_share else ista_iters
 
-        self.softthrsh = nn.ModuleList([
-            SoftshrinkTrainable(
+        def build_softthrsh():
+            return SoftshrinkTrainable(
                 Parameter(0.1 * torch.ones(1, kc), requires_grad=True)
-            ) for _ in range(self._layers + 1)])
+            )
+
+        self.softthrsh0 = build_softthrsh()
+        if iter_weight_share:
+            self.softthrsh1 = nn.ModuleList([self.softthrsh0
+                                             for _ in range(self._layers)])
+        else:
+            self.softthrsh1 = nn.ModuleList([build_softthrsh()
+                                             for _ in range(self._layers)])
 
         def build_conv_layers(in_ch, out_ch, count):
             """Conv layer wrapper
@@ -41,19 +50,29 @@ class LISTAConvDictADMM(nn.Module):
                          stride=1, bias=False, pad=pad) for _ in
                  range(count)])
 
-        self.encode_conv = build_conv_layers(num_input_channels, kc,
-                                             self._layers + 1)
+        self.encode_conv0 = build_conv_layers(num_input_channels, kc, 1)[0]
+        if iter_weight_share:
+            self.encode_conv1 = nn.ModuleList(self.encode_conv0 for _ in
+                                              range(self._layers))
+        else:
+            self.encode_conv1 = build_conv_layers(num_input_channels, kc,
+                                                  self._layers)
+
         self.decode_conv0 = build_conv_layers(kc, num_input_channels,
-                                              self._layers)
-        self.decode_conv1 = build_conv_layers(kc, num_input_channels,
-                                              1)[0]
+                                              self._layers if not share_decoder
+                                              else 1)
+        if share_decoder:
+            self.decode_conv1 = self.decode_conv0[0]
+            self.decode_conv0 = nn.ModuleList([self.decode_conv0[0] for _ in
+                                               range(self._layers)])
+        else:
+            self.decode_conv1 = build_conv_layers(kc, num_output_channels, 1)[0]
 
 
     def forward_enc(self, inputs):
         """Conv LISTA forwrd pass
         """
-        #print('thersh max: {}\n'.format(np.max(self.softthrsh._lambd.cpu().data.numpy())))
-        csc = self.softthrsh[0](self.encode_conv[0](inputs))
+        csc = self.softthrsh0(self.encode_conv0(inputs))
 
         for _itr, lyr in\
             zip(range(self._ista_iters),
@@ -61,10 +80,11 @@ class LISTAConvDictADMM(nn.Module):
 
             _inputs = inputs
 
-            sc_residual = self.encode_conv[lyr + 1](
-                _inputs - self.decode_conv0[lyr](csc)
+            tmp = _inputs - self.decode_conv0[lyr](csc)
+            sc_residual = self.encode_conv1[lyr](
+                tmp
                 )
-            csc = self.softthrsh[lyr + 1](csc + sc_residual)
+            csc = self.softthrsh1[lyr](csc + sc_residual)
         return csc
 
     def forward_dec(self, csc):
