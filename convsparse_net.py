@@ -68,6 +68,23 @@ class LISTAConvDict(nn.Module):
         else:
             self.decode_conv1 = build_conv_layers(kc, num_output_channels, 1)[0]
 
+    @property
+    def ista_iters(self):
+        """Amount of ista iterations
+        """
+        return self._ista_iters
+
+    @property
+    def layers(self):
+        """Amount of layers with free parameters.
+        """
+        return self._layers
+
+    @property
+    def conv_dictionary(self):
+        """Get the weights of convolutoinal dictionary
+        """
+        return self.decode_conv1[0].weight.data
 
     def forward_enc(self, inputs):
         """Conv LISTA forwrd pass
@@ -76,14 +93,11 @@ class LISTAConvDict(nn.Module):
 
         for _itr, lyr in\
             zip(range(self._ista_iters),
-                    cycle(range(self._layers))):
+                cycle(range(self._layers))):
 
-            _inputs = inputs
-
-            tmp = _inputs - self.decode_conv0[lyr](csc)
             sc_residual = self.encode_conv1[lyr](
-                tmp
-                )
+                inputs - self.decode_conv0[lyr](csc)
+            )
             csc = self.softthrsh1[lyr](csc + sc_residual)
         return csc
 

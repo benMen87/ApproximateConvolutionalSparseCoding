@@ -101,14 +101,14 @@ def gaussian(ins, is_training, mean, stddev):
 def delete_pixels(ins, is_training, sample_prob=0.3):
     if is_training:
         _sample_prob = torch.Tensor(1)
-        prob_mask = _sample_prob.uniform_(sample_prob) * torch.ones_like(ins)   
+        prob_mask = _sample_prob.uniform_(sample_prob) * torch.ones_like(ins)
         mask = torch.bernoulli(prob_mask)
         return ins * mask  + (1 - mask)
     return ins
 
 #TODO(hillel): this is dangrouse NO default factor val!!!
 def reconsturction_loss(distance='l1', use_cuda=True):
-    
+
     if distance == 'l1':
         dist = nn.L1Loss()
     elif distance == 'l2':
@@ -205,6 +205,6 @@ def save_eval(path, model):
     torch.save(model.state_dict(), path)
 
 def load_eval(path, model):
-    model.load_state_dict(torch.load(path)['model'])
+    model.load_state_dict(torch.load(path, map_location='cpu')['model'])
     model.eval()
 

@@ -3,6 +3,7 @@ from torch.autograd import Variable
 import torch.utils.data as data
 import torch
 import numpy as np
+import os
 from os import listdir
 from os.path import join
 from PIL import Image
@@ -18,13 +19,23 @@ def load_img(filepath, convert='L'):
 class DatasetFromFolder(data.Dataset):
     def __init__(self, image_dir, pre_transform, inputs_transform, use_cuda=True):
         super(DatasetFromFolder, self).__init__()
-        self.image_filenames = [join(image_dir, x) for x in listdir(image_dir) if is_image_file(x)]
+        self._image_filenames = [join(image_dir, x) for x in listdir(image_dir) if is_image_file(x)]
         self.pre_transform = pre_transform
         self.inputs_transform = inputs_transform
         self._use_cuda = use_cuda
 
+    @property
+    def image_filenames(self):
+        """Get list of file names
+        """
+        def fname(name):
+            """Get file name from full path
+            """
+            return os.path.splitext(os.path.basename(name))[0]
+        return list(map(fname, self._image_filenames))
+
     def __getitem__(self, index):
-        _inputs = self.pre_transform(load_img(self.image_filenames[index]))
+        _inputs = self.pre_transform(load_img(self._image_filenames[index]))
         if self.inputs_transform:
             _targets = self.inputs_transform(_inputs)
         if self._use_cuda:
@@ -33,7 +44,7 @@ class DatasetFromFolder(data.Dataset):
         return _inputs, _targets
 
     def __len__(self):
-        return len(self.image_filenames)
+        return len(self._image_filenames)
 
 
 class DatasetFromNPZ(data.Dataset):

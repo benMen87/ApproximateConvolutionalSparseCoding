@@ -20,6 +20,7 @@ from test_denoise import plot_res
 from datasets import  DatasetFromNPZ
 import arguments
 import test_denoise
+import analyze_model
 
 USE_CUDA = torch.cuda.is_available()
 FILE_PATH = os.path.dirname(os.path.abspath(__file__))
@@ -37,12 +38,13 @@ def get_train_valid_loaders(dataset_path, batch_size, noise):
                               key='TRAIN', use_cuda=USE_CUDA,
                               pre_transform=pre_process_fn,
                               inputs_transform=input_process_fn)
-    train_loader = DataLoader(train_loader, batch_size=batch_size, shuffle=True)
 
+    train_loader = DataLoader(train_loader, batch_size=batch_size, shuffle=True)
     valid_loader = DatasetFromNPZ(npz_path=dataset_path,
                               key='VAL', use_cuda=USE_CUDA,
                               pre_transform=pre_process_fn,
                               inputs_transform=input_process_fn)
+
     valid_loader = DataLoader(valid_loader, batch_size=1, shuffle=True)
     return train_loader, valid_loader
 
@@ -52,7 +54,6 @@ def step(model, img, img_n, optimizer, criterion, compare_loss_thrsh=1e7):
     optimizer.zero_grad()
 
     output, _sc_n = model(img_n)
-#    output, sc_tar = model(img)
 
     results = [
         output[..., 3:-3, 3:-3],
@@ -65,11 +66,9 @@ def step(model, img, img_n, optimizer, criterion, compare_loss_thrsh=1e7):
     loss = criterion(results, targets)
     loss.backward()
 
-    if float(loss) - float(compare_loss_thrsh) < 1e-3:
-        optimizer.step()
-    else:
-        print(f'loss is {float(loss)} where compare loss is {compare_loss_thrsh} not running'
-               +' bp')
+    # torch.nn.utils.clip_grad_value_(model.parameters(), 0.4)
+    optimizer.step()
+
     return float(loss), output.cpu()
 
 def maybe_save_model(
@@ -81,6 +80,7 @@ def maybe_save_model(
         curr_val,
         other_values,
         model_path=None):
+
     path = model_path if model_path is not None else ''
 
     if not other_values or curr_val > max(other_values):
@@ -132,10 +132,9 @@ def plot_losses(train_loss, valid_loss, valid_psnr, path):
 def train(model, args):
 
     optimizer = optim.Adam(model.parameters(), lr=args['learning_rate'])
-    scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min', verbose=True)
+    # ReduceLROnPlateau(optimizer, 'min', verbose=True)
     train_loader, valid_loader = get_train_valid_loaders(args['dataset_path'], args['batch_size'], args['noise'])
 
-    #TODO(hillel): this is ugly fix it!! simple l2 dist for valid more complex for train
     valid_loss = reconsturction_loss(use_cuda=True)
 
 
@@ -148,19 +147,24 @@ def train(model, args):
     print('train args:')
     _pprint(args)
 
-    if args['load_path'] != '':
-        ld_p = args['load_path']
-        print('loading from %s'%ld_p)
-        load_train(ld_p, model, optimizer, scheduler)
-        print('Done!')
-
     model_path = None
     _train_loss = []
     _valid_loss = []
     _valid_psnr = []
     running_loss = 0
     compare_loss = 1
-    valid_every = int(0.05 * len(train_loader))
+    valid_every = int(0.1 * len(train_loader))
+
+    gamma = 0.1 if model.ista_iters < 15 else\
+            0.1 * (5 / model.ista_iters)**0.5
+
+    scheduler = lr_scheduler.StepLR(optimizer, step_size=3, gamma=gamma)
+
+    if args.get('load_path', '') != '':
+        ld_p = args['load_path']
+        print('loading from %s'%ld_p)
+        load_train(ld_p, model, optimizer, scheduler)
+        print('Done!')
 
     itr = 0
     for e in range(args['epoch']):
@@ -173,7 +177,7 @@ def train(model, args):
             running_loss += float(_loss)
             compare_loss += 1e-1 * float(_loss)
 
-            if itr % valid_every == 0:
+            if itr % valid_every == 0 or itr % len(train_loader) == 0:
                 _train_loss.append(running_loss / valid_every)
                 _v_loss, _v_psnr = run_valid(
                     model,
@@ -196,16 +200,19 @@ def train(model, args):
                     _valid_psnr,
                     model_path
                 )
+            if itr % valid_every == 0:
                 _valid_loss.append(_v_loss)
                 _valid_psnr.append(_v_psnr)
                 print("epoch {} train loss: {} valid loss: {}, valid psnr: {}".format(e,
-                    running_loss / valid_every, _v_loss, _v_psnr))
+                      running_loss / valid_every, _v_loss, _v_psnr))
                 running_loss = 0
 
     plot_losses(_train_loss, _valid_loss, _valid_psnr, args['save_dir'])
     return model_path, _valid_loss[-1], _valid_psnr[-1]
 
 def build_model(args):
+    """Build lista model
+    """
 
     print("model args")
     _pprint(args)
@@ -213,7 +220,7 @@ def build_model(args):
     model = LISTAConvDict(
         num_input_channels=args['num_input_channels'],
         num_output_channels=args['num_output_channels'],
-        kc=args['kc'], 
+        kc=args['kc'],
         ks=args['ks'],
         ista_iters=args['ista_iters'],
         iter_weight_share=args['iter_weight_share'],
@@ -237,20 +244,24 @@ def main(args_file):
     model_path, valid_loss, valid_psnr = train(model, args['train_args'])
 
     args['test_args']['load_path'] = model_path
+    args['train_args']['load_path'] = model_path
     args['train_args']['final_loss'] = valid_loss
     args['train_args']['final_psnr'] = valid_psnr
     arguments.logdictargs(os.path.join(log_dir, 'params.json'), args)
 
     if args['test_args']['testset_path']:
-        psnrs, res = test_denoise.test(args['model_args'],
+        psnrs, res, test_names = test_denoise.test(args['model_args'],
              model_path,
              args['train_args']['noise'], 
              args['test_args']['testset_path']
              )
-        args['test_args']['final_psnrs'] = psnrs
+        args['test_args']['final_psnrs'] = dict(zip(test_names, psnrs))
         arguments.logdictargs(os.path.join(log_dir, 'params.json'), args)
-        for idx, ims in enumerate(res):
-            test_denoise.plot_res(ims[0], ims[1], ims[2], idx, args['train_args']['log_dir'])
+        for test_name, ims in zip(test_names, res):
+            test_denoise.plot_res(ims[0], ims[1], ims[2], test_name,
+                                  args['train_args']['log_dir'], ims[3])
+        print("Finished running tests -- running evaluation")
+        analyze_model.evaluateu(args)
     else:
         print('no test path provided skipping test run')
 
