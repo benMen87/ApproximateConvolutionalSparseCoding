@@ -14,6 +14,8 @@ from convsparse_net import LISTAConvDict
 from datasets import  DatasetFromNPZ
 import arguments
 
+DEFAULT_TESTSET_PATH = '/data/hillel/'
+
 USE_CUDA = torch.cuda.is_available()
 
 def plot_res(img, img_n, res, name, log_path, other_res=None):
@@ -76,9 +78,55 @@ def create_famouse_dataset(test_path, noise):
                 inputs_transform=input_process_fn
             )
 
-def famouse_images_teset(model, test_loader, image_names, pad_size):
+def create_test_dataset(test_path, noise):
+    def pre_process_fn(_x): return normilize(_x, 255)
+    def input_process_fn(_x): return gaussian(_x, is_training=True, mean=0, stddev=normilize(noise, 255))
+
+    return DatasetFromNPZ(
+                test_path, key='TEST',
+                pre_transform=pre_process_fn,
+                use_cuda=USE_CUDA,
+                inputs_transform=input_process_fn
+            )
+
+def avarge_psnr_testset(model, test_loader, border, noise):
+
+    def _to_np(img):
+        return to_np(img)[0, 0, border:-border, border:-border]
+
+    def _bm3d(img_n):
+        res = pybm3d.bm3d.bm3d(to_np(img_n)[0, 0, ...], noise)
+        return res[border:-border, border:-border]
+
+    ours_psnr = 0
+    bm3d_psnr = 0
+    for img, img_n in test_loader:
+
+        output, _ = model(img_n)
+
+        np_img = _to_np(img)
+        np_output = np.clip(_to_np(output), 0, 1)
+        bm3d_img = _bm3d(_to_np(img_n))
+
+        bm3d_psnr += common.psnr(np_img, bm3d_img)
+        ours_psnr += common.psnr(np_img, np_output, False)
+    bm3d_psnr = bm3d_psnr / len(test_loader)
+    ours_psnr = ours_psnr / len(test_loader)
+    print(f'testset avargs psnr ours - {ours_psnr}, bm3d - {bm3d_psnr}')
+    return ours_psnr, bm3d_psnr
+
+def famouse_images_teset(model, test_loader, image_names, border, noise):
     """Run and save tests on specific images.
     """
+
+    def _to_np(img):
+        return to_np(img)[0, 0, border:-border, border:-border]
+
+    def _bm3d(img_n):
+        res = pybm3d.bm3d.bm3d(to_np(img_n)[0, 0, ...], noise)
+        return res[border:-border, border:-border]
+
+
     psnrs = []
     res_array = []
     idx = 0
@@ -86,14 +134,11 @@ def famouse_images_teset(model, test_loader, image_names, pad_size):
         img, img_n = test_data
         output, _ = model(img_n)
 
-        b = args['ks'] // 
+        np_img = _to_np(img)
+        np_output = np.clip(_to_np(output), 0, 1)
+        np_img_n = _to_np(img_n)
 
-        np_img = to_np(img)[0, 0, b:-b, b:-b]
-        np_output = np.clip(to_np(output)[0, 0, b:-b, b:-b], 0, 1)
-        np_img_n = to_np(img_n)[0, 0, b:-b, b:-b]
-
-        bm3d_img =\
-                pybm3d.bm3d.bm3d(to_np(img_n)[0, 0, ...], normilize(noise, 255))[b:-b, b:-b]
+        bm3d_img = _bm3d(img_n)
 
         bm3d_psnr = common.psnr(np_img, bm3d_img)
         ours_psnr = common.psnr(np_img, np_output, False)
@@ -104,26 +149,40 @@ def famouse_images_teset(model, test_loader, image_names, pad_size):
                                                    bm3d_psnr))
         idx += 1
 
-    print('Avg psnr ours: {} other: {}'.format(np.mean([p['ours'] for p in psnrs]),
-                                               np.mean([p['bm3d'] for p in psnrs])
-                                              )
-         )
-def test(args, saved_model_path, noise, testset_path):
+    print('Avg famous psnr ours: {} other: {}'.format(np.mean([p['ours'] for p in psnrs]),
+                                               np.mean([p['bm3d'] for p in psnrs])))
+
+    return psnrs, res_array
+
+def test(args, saved_model_path, noise, famous_path, testset_path=None):
     """Run predictable test
     """
     torch.manual_seed(7)
 
-
-    testset = create_famouse_dataset(testset_path, noise)
-    file_names = testset.image_filenames
-    test_loader = DataLoader(testset)
-
     model = restore_model(args, saved_model_path)
-
     if USE_CUDA:
         model = model.cuda()
 
-    return psnrs, res_array, file_names
+
+    testset = create_famouse_dataset(famous_path, noise)
+    file_names = testset.image_filenames
+    famous_loader = DataLoader(testset)
+
+    fam_psnrs, fam_res_array =\
+            famouse_images_teset(
+                model,
+                famous_loader,
+                file_names,
+                args["ks"]//2,
+                noise)
+    if testset_path is not None:
+        testset = create_test_dataset(testset_path, noise)
+        test_loader = DataLoader(testset)
+        ours_psnr, bm3d_psnr = avarge_psnr_testset(model, test_loader, args["ks"]//2, noise)
+    else:
+        ours_psnr = bm3d_psnr = 0
+
+    return fam_psnrs, fam_res_array, file_names, ours_psnr, bm3d_psnr
 
 def _test(args_file):
     _args = arguments.load_args(args_file)
@@ -135,7 +194,7 @@ def _test(args_file):
     noise = test_args['noise']
 
     log_dir = os.path.dirname(model_path)
-    psnr, res, file_names = test(model_args, model_path, noise, tst_ims)
+    psnr, res, file_names, ours_psnr, bm3d_psnr = test(model_args, model_path, noise, tst_ims)
     for f_name, ims in zip(file_names, res):
         plot_res(ims[0], ims[1], ims[2], f_name, log_dir, ims[3])
 

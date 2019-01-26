@@ -5,7 +5,6 @@ from torch.autograd import Variable
 import torch.nn as nn
 import numpy as np
 
-
 def to_np(_x): return _x.data.cpu().numpy()
 
 def I(_x): return _x
@@ -15,14 +14,17 @@ def normilize(_x, _val=255):
 
 def count_parameters(model):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
-def nhwc_to_nchw(_x, keep_dims=True): 
+def nhwc_to_nchw(_x):
     if len(_x.shape) == 3 and (_x.shape[-1] == 1 or _x.shape[-1] == 3): #unsqueeze N dim
         _x = _x[None, ...]
     elif len(_x.shape) == 3: #unsqueezed C dim
-        _x = _x[...,None]
+        _x = _x[..., None]
     elif len(_x.shape) == 2:  #unsqueeze N and C dim
-        _x = _x[None,:,:,None]
+        _x = _x[None, :, :, None]
     return np.transpose(_x, (0, 3, 1, 2))
+
+def remove_img_boarder(border, x):
+    return x[0, 0, border:-border, border:-border]
 
 def get_unique_name(path):
     idx = 1

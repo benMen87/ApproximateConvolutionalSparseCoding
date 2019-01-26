@@ -250,12 +250,16 @@ def main(args_file):
     arguments.logdictargs(os.path.join(log_dir, 'params.json'), args)
 
     if args['test_args']['testset_path']:
-        psnrs, res, test_names = test_denoise.test(args['model_args'],
-             model_path,
-             args['train_args']['noise'],
-             args['test_args']['testset_path']
-             )
+        psnrs, res, test_names, ours_psnr, bm3d_psnr = test_denoise.test(
+            args['model_args'],
+            model_path,
+            args['train_args']['noise'],
+            args['test_args']['testset_path'],
+            args['train_args']['dataset_path']
+        )
         args['test_args']['final_psnrs'] = dict(zip(test_names, psnrs))
+        args['test_args']['final_psnrs'] = {'global_avg': {'ours': ours_psnr,
+                                                           'bm3d': bm3d_psnr}}
         arguments.logdictargs(os.path.join(log_dir, 'params.json'), args)
         for test_name, ims in zip(test_names, res):
             test_denoise.plot_res(ims[0], ims[1], ims[2], test_name,
