@@ -76,30 +76,17 @@ def create_famouse_dataset(test_path, noise):
                 inputs_transform=input_process_fn
             )
 
-
-def test(args, saved_model_path, noise, testset_path):
-    """Run predictable test
+def famouse_images_teset(model, test_loader, image_names, pad_size):
+    """Run and save tests on specific images.
     """
-    torch.manual_seed(7)
-
-
-    testset = create_dataset(testset_path, noise)
-    file_names = testset.image_filenames
-    test_loader = DataLoader(testset)
-
-    model = restore_model(args, saved_model_path)
-
-    if USE_CUDA:
-        model = model.cuda()
-
     psnrs = []
     res_array = []
     idx = 0
-    for test_data, test_name in zip(test_loader, file_names):
+    for test_data, test_name in zip(test_loader, image_names):
         img, img_n = test_data
         output, _ = model(img_n)
 
-        b = args['ks'] // 2
+        b = args['ks'] // 
 
         np_img = to_np(img)[0, 0, b:-b, b:-b]
         np_output = np.clip(to_np(output)[0, 0, b:-b, b:-b], 0, 1)
