@@ -67,7 +67,7 @@ def restore_model(model_args, saved_model_path):
     common.load_eval(saved_model_path, model)
     return model
 
-def create_famouse_dataset(test_path, noise):
+def create_famous_dataset(test_path, noise):
     def pre_process_fn(_x): return normilize(_x, 255)
     def input_process_fn(_x): return gaussian(_x, is_training=True, mean=0, stddev=normilize(noise, 255))
 
@@ -117,7 +117,7 @@ def avarge_psnr_testset(model, test_loader, border, noise):
     print(f'testset avargs psnr ours - {ours_psnr}, bm3d - {bm3d_psnr}')
     return ours_psnr, bm3d_psnr
 
-def famouse_images_teset(model, test_loader, image_names, border, noise):
+def famous_images_teset(model, test_loader, image_names, border, noise):
     """Run and save tests on specific images.
     """
 
@@ -168,12 +168,12 @@ def test(args, saved_model_path, noise, famous_path, testset_path=None):
 
     norm_noise = common.normilize(noise, 255)
 
-    testset = create_famouse_dataset(famous_path, norm_noise)
+    testset = create_famous_dataset(famous_path, norm_noise)
     file_names = testset.image_filenames
     famous_loader = DataLoader(testset)
 
     fam_psnrs, fam_res_array =\
-            famouse_images_teset(
+            famous_images_teset(
                 model,
                 famous_loader,
                 file_names,
