@@ -9,11 +9,12 @@ def to_np(_x): return _x.data.cpu().numpy()
 
 def I(_x): return _x
 
-def normilize(_x, _val=255): 
+def normilize(_x, _val=255):
     return _x / _val
 
 def count_parameters(model):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
 def nhwc_to_nchw(_x):
     if len(_x.shape) == 3 and (_x.shape[-1] == 1 or _x.shape[-1] == 3): #unsqueeze N dim
         _x = _x[None, ...]

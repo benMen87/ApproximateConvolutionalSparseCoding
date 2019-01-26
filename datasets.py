@@ -52,9 +52,11 @@ class DatasetFromNPZ(data.Dataset):
         super(DatasetFromNPZ, self).__init__()
         dataset = np.load(npz_path)
         self._use_cuda = use_cuda
-    
+
         if key not in dataset:
-            raise  ValueError('key is not valid for db {} valid keys are {}'.format(npz_path, dataset.keys()))
+            raise ValueError('key is not valid for db {} valid keys are {}'
+                             .format(npz_path, dataset.keys()))
+
         self._targets = pre_transform(dataset[key])
         print(len(self._targets))
         self._inputs_transform = inputs_transform

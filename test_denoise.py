@@ -14,7 +14,7 @@ from convsparse_net import LISTAConvDict
 from datasets import  DatasetFromNPZ
 import arguments
 
-DEFAULT_TESTSET_PATH = '/data/hillel/'
+DEFAULT_TESTSET_PATH = '/data/hillel/data_sets/pascal_120.npz'
 
 USE_CUDA = torch.cuda.is_available()
 
@@ -79,7 +79,7 @@ def create_famouse_dataset(test_path, noise):
             )
 
 def create_test_dataset(test_path, noise):
-    def pre_process_fn(_x): return normilize(_x, 255)
+    def pre_process_fn(_x): return normilize(nhwc_to_nchw(_x), 255)
     def input_process_fn(_x): return gaussian(_x, is_training=True, mean=0, stddev=normilize(noise, 255))
 
     return DatasetFromNPZ(
@@ -91,22 +91,24 @@ def create_test_dataset(test_path, noise):
 
 def avarge_psnr_testset(model, test_loader, border, noise):
 
-    def _to_np(img):
-        return to_np(img)[0, 0, border:-border, border:-border]
+    def _to_np(_img):
+        return to_np(_img)[0, 0, border:-border, border:-border]
 
-    def _bm3d(img_n):
-        res = pybm3d.bm3d.bm3d(to_np(img_n)[0, 0, ...], noise)
+    def _bm3d(_img_n):
+        res = pybm3d.bm3d.bm3d(to_np(_img_n)[0, 0, ...], noise)
+        res[np.where(np.isnan(res))] = 0
         return res[border:-border, border:-border]
 
     ours_psnr = 0
     bm3d_psnr = 0
+    print(f'running avg psnr on testset with size {len(test_loader)}')
     for img, img_n in test_loader:
 
         output, _ = model(img_n)
 
         np_img = _to_np(img)
         np_output = np.clip(_to_np(output), 0, 1)
-        bm3d_img = _bm3d(_to_np(img_n))
+        bm3d_img = _bm3d(img_n)
 
         bm3d_psnr += common.psnr(np_img, bm3d_img)
         ours_psnr += common.psnr(np_img, np_output, False)
@@ -124,6 +126,7 @@ def famouse_images_teset(model, test_loader, image_names, border, noise):
 
     def _bm3d(img_n):
         res = pybm3d.bm3d.bm3d(to_np(img_n)[0, 0, ...], noise)
+        res[np.where(np.isnan(res))] = 0
         return res[border:-border, border:-border]
 
 
@@ -163,8 +166,9 @@ def test(args, saved_model_path, noise, famous_path, testset_path=None):
     if USE_CUDA:
         model = model.cuda()
 
+    norm_noise = common.normilize(noise, 255)
 
-    testset = create_famouse_dataset(famous_path, noise)
+    testset = create_famouse_dataset(famous_path, norm_noise)
     file_names = testset.image_filenames
     famous_loader = DataLoader(testset)
 
@@ -174,9 +178,9 @@ def test(args, saved_model_path, noise, famous_path, testset_path=None):
                 famous_loader,
                 file_names,
                 args["ks"]//2,
-                noise)
+                norm_noise)
     if testset_path is not None:
-        testset = create_test_dataset(testset_path, noise)
+        testset = create_test_dataset(testset_path, norm_noise)
         test_loader = DataLoader(testset)
         ours_psnr, bm3d_psnr = avarge_psnr_testset(model, test_loader, args["ks"]//2, noise)
     else:
@@ -194,7 +198,8 @@ def _test(args_file):
     noise = test_args['noise']
 
     log_dir = os.path.dirname(model_path)
-    psnr, res, file_names, ours_psnr, bm3d_psnr = test(model_args, model_path, noise, tst_ims)
+    psnr, res, file_names, ours_psnr, bm3d_psnr =\
+            test(model_args, model_path, noise, tst_ims, DEFAULT_TESTSET_PATH)
     for f_name, ims in zip(file_names, res):
         plot_res(ims[0], ims[1], ims[2], f_name, log_dir, ims[3])
 
