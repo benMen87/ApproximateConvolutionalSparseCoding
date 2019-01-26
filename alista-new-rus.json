@@ -1,0 +1,30 @@
+{
+    "train_args":
+     {
+         "noise": 20,
+         "epoch": 10,
+         "batch_size": 64,
+         "learning_rate": 0.001,
+         "dataset_path": "/data/hillel/data_sets/pascal_120.npz",
+	 "log_dir": "./saved_models",
+	 "name": "alista-20iters"
+     },
+     "model_args":
+     {
+         "num_input_channels": 1,
+         "num_output_channels": 1,
+         "kc": 64, 
+         "ks": 7,
+         "ista_iters": 20,
+         "iter_weight_share": false,
+         "share_decoder": true
+     },
+     "test_args":
+     {
+        "noise": 20,
+        "load_path": "",
+        "name": "alista",
+        "testset_path": "/data/hillel/data_sets/test_images/"
+
+     }
+}
