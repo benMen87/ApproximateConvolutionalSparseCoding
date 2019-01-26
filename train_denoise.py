@@ -178,7 +178,6 @@ def train(model, args):
             compare_loss += 1e-1 * float(_loss)
 
             if itr % valid_every == 0 or itr % len(train_loader) == 0:
-                _train_loss.append(running_loss / valid_every)
                 _v_loss, _v_psnr = run_valid(
                     model,
                     valid_loader,
@@ -201,6 +200,7 @@ def train(model, args):
                     model_path
                 )
             if itr % valid_every == 0:
+                _train_loss.append(running_loss / valid_every)
                 _valid_loss.append(_v_loss)
                 _valid_psnr.append(_v_psnr)
                 print("epoch {} train loss: {} valid loss: {}, valid psnr: {}".format(e,
@@ -252,7 +252,7 @@ def main(args_file):
     if args['test_args']['testset_path']:
         psnrs, res, test_names = test_denoise.test(args['model_args'],
              model_path,
-             args['train_args']['noise'], 
+             args['train_args']['noise'],
              args['test_args']['testset_path']
              )
         args['test_args']['final_psnrs'] = dict(zip(test_names, psnrs))
@@ -260,8 +260,9 @@ def main(args_file):
         for test_name, ims in zip(test_names, res):
             test_denoise.plot_res(ims[0], ims[1], ims[2], test_name,
                                   args['train_args']['log_dir'], ims[3])
+
         print("Finished running tests -- running evaluation")
-        analyze_model.evaluateu(args)
+        analyze_model.evaluate(args)
     else:
         print('no test path provided skipping test run')
 

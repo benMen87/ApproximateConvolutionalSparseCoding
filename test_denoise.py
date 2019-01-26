@@ -5,18 +5,20 @@ import numpy as np
 from datasets import DatasetFromFolder
 from torch.utils.data import DataLoader
 import os
-from convsparse_net import LISTAConvDict
-import arguments
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pybm3d
 
-DEFAULT_IMG_PATH = '/data/hillel/data_sets/test_images/'
+from convsparse_net import LISTAConvDict
+from datasets import  DatasetFromNPZ
+import arguments
+
 USE_CUDA = torch.cuda.is_available()
 
-
 def plot_res(img, img_n, res, name, log_path, other_res=None):
+    """Plot clean/noisy/orig images
+    """
 
     img = np.squeeze(img)
     img_n = np.squeeze(img_n)
@@ -63,9 +65,10 @@ def restore_model(model_args, saved_model_path):
     common.load_eval(saved_model_path, model)
     return model
 
-def create_dataset(test_path, noise):
+def create_famouse_dataset(test_path, noise):
     def pre_process_fn(_x): return normilize(_x, 255)
     def input_process_fn(_x): return gaussian(_x, is_training=True, mean=0, stddev=normilize(noise, 255))
+
     return DatasetFromFolder(
                 test_path,
                 pre_transform=pre_process_fn,
@@ -118,6 +121,21 @@ def test(args, saved_model_path, noise, testset_path):
                                                np.mean([p['bm3d'] for p in psnrs])
                                               )
          )
+def test(args, saved_model_path, noise, testset_path):
+    """Run predictable test
+    """
+    torch.manual_seed(7)
+
+
+    testset = create_famouse_dataset(testset_path, noise)
+    file_names = testset.image_filenames
+    test_loader = DataLoader(testset)
+
+    model = restore_model(args, saved_model_path)
+
+    if USE_CUDA:
+        model = model.cuda()
+
     return psnrs, res_array, file_names
 
 def _test(args_file):
