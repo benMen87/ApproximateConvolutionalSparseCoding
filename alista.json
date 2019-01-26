@@ -6,7 +6,7 @@
          "batch_size": 10,
          "learning_rate": 0.001,
          "dataset_path": "/data/hillel/data_sets/pascal320_notst.npz",
-	 "log_dir": "./saved_models",
+	 "log_dir": "/data/home/hillel/projects/lista_admm/saved_models",
 	 "name": "alista"
      },
      "model_args":

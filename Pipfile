@@ -1,0 +1,18 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[dev-packages]
+"pybm3d" = "*"
+
+[packages]
+pytorch-msssim = {git = "https://github.com/jorge-pessoa/pytorch-msssim.git"}
+pytorch-ssim = {git = "https://github.com/jorge-pessoa/pytorch-msssim.git", editable = true}
+torch = "*"
+torchvision = "*"
+matplotlib = "*"
+ipython = "*"
+
+[requires]
+python_version = "3.6"

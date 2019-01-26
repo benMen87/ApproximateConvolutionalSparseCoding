@@ -3,7 +3,7 @@
      {
          "noise": 20,
          "epoch": 10,
-         "batch_size": 64,
+         "batch_size": 15,
          "learning_rate": 0.001,
          "dataset_path": "/data/hillel/data_sets/pascal_120.npz",
 	 "log_dir": "./saved_models",

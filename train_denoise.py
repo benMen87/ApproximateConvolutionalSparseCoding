@@ -156,7 +156,7 @@ def train(model, args):
     valid_every = int(0.1 * len(train_loader))
 
     gamma = 0.1 if model.ista_iters < 15 else\
-            0.1 * (5 / model.ista_iters)**0.5
+            0.1 * (1 / model.ista_iters)**0.5
 
     scheduler = lr_scheduler.StepLR(optimizer, step_size=3, gamma=gamma)
 

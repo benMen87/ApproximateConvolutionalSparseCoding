@@ -188,7 +188,8 @@ def test(args, saved_model_path, noise, famous_path, testset_path=None):
     if testset_path is not None:
         testset = create_test_dataset(testset_path, norm_noise)
         test_loader = DataLoader(testset)
-        ours_psnr, bm3d_psnr = avarge_psnr_testset(model, test_loader, args["ks"]//2, noise)
+        ours_psnr, bm3d_psnr = avarge_psnr_testset(model, test_loader,
+                                                   args["ks"]//2, norm_noise)
     else:
         ours_psnr = bm3d_psnr = 0
 
