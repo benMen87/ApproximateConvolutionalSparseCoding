@@ -7,7 +7,8 @@
          "learning_rate": 0.001,
          "dataset_path": "/data/hillel/data_sets/pascal320_notst.npz",
 	 "log_dir": "./saved_models",
-	 "name": "alista",
+	 "name": "alista"
+     },
      "model_args":
      {
          "num_input_channels": 1,

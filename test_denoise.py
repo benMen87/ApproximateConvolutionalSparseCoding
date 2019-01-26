@@ -101,7 +101,9 @@ def avarge_psnr_testset(model, test_loader, border, noise):
 
     ours_psnr = 0
     bm3d_psnr = 0
-    print(f'running avg psnr on testset with size {len(test_loader)}')
+    avg_over = 1000
+    print('running avg psnr avg_over image count')
+    img_count = 0
     for img, img_n in test_loader:
 
         output, _ = model(img_n)
@@ -112,8 +114,12 @@ def avarge_psnr_testset(model, test_loader, border, noise):
 
         bm3d_psnr += common.psnr(np_img, bm3d_img)
         ours_psnr += common.psnr(np_img, np_output, False)
-    bm3d_psnr = bm3d_psnr / len(test_loader)
-    ours_psnr = ours_psnr / len(test_loader)
+
+        img_count += 1
+        if img_count == avg_over:
+            break
+    bm3d_psnr = bm3d_psnr / avg_over
+    ours_psnr = ours_psnr / avg_over
     print(f'testset avargs psnr ours - {ours_psnr}, bm3d - {bm3d_psnr}')
     return ours_psnr, bm3d_psnr
 
