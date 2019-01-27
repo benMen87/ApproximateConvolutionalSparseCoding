@@ -84,7 +84,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--args_file', default='./my_args.json')
-    args_file = parser.parse_args().arg_file
+    args_file = parser.parse_args().args_file
 
     _args = arguments.load_args(args_file)
 

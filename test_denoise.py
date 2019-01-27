@@ -101,7 +101,8 @@ def avarge_psnr_testset(model, test_loader, border, noise):
 
     ours_psnr = 0
     bm3d_psnr = 0
-    avg_over = 1000
+    avg_over = 500
+
     print('running avg psnr avg_over image count')
     img_count = 0
     for img, img_n in test_loader:
@@ -217,7 +218,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--args_file', default='./my_args.json')
-    args_file = parser.parse_args().arg_file
+    args_file = parser.parse_args().args_file
 
     _test(args_file)
 
