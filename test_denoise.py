@@ -127,11 +127,11 @@ def famous_images_teset(model, test_loader, image_names, border, noise):
     """Run and save tests on specific images.
     """
 
-    def _to_np(img):
-        return to_np(img)[0, 0, border:-border, border:-border]
+    def _to_np(x):
+        return to_np(x)[0, 0, border:-border, border:-border]
 
-    def _bm3d(img_n):
-        res = pybm3d.bm3d.bm3d(to_np(img_n)[0, 0, ...], noise)
+    def _bm3d(x):
+        res = pybm3d.bm3d.bm3d(to_np(x)[0, 0, ...], noise)
         res[np.where(np.isnan(res))] = 0
         return res[border:-border, border:-border]
 
@@ -172,12 +172,12 @@ def test(args, saved_model_path, noise, famous_path, testset_path=None):
     if USE_CUDA:
         model = model.cuda()
 
-    norm_noise = common.normilize(noise, 255)
 
-    testset = create_famous_dataset(famous_path, norm_noise)
+    testset = create_famous_dataset(famous_path, noise)
     file_names = testset.image_filenames
     famous_loader = DataLoader(testset)
 
+    norm_noise = common.normilize(noise, 255)
     fam_psnrs, fam_res_array =\
             famous_images_teset(
                 model,
@@ -186,7 +186,7 @@ def test(args, saved_model_path, noise, famous_path, testset_path=None):
                 args["ks"]//2,
                 norm_noise)
     if testset_path is not None:
-        testset = create_test_dataset(testset_path, norm_noise)
+        testset = create_test_dataset(testset_path, noise)
         test_loader = DataLoader(testset)
         ours_psnr, bm3d_psnr = avarge_psnr_testset(model, test_loader,
                                                    args["ks"]//2, norm_noise)
@@ -216,7 +216,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--arg_file', default='./my_args.json')
+    parser.add_argument('--args_file', default='./my_args.json')
     args_file = parser.parse_args().arg_file
 
     _test(args_file)

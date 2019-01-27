@@ -1,3 +1,4 @@
+import torch
 import numpy as np
 import matplotlib
 import os
@@ -7,6 +8,8 @@ import matplotlib.gridspec as gridspec
 
 import arguments
 import test_denoise
+
+USE_CUDA = torch.cuda.is_available()
 
 def my_subplot(data, dims, name, save_path):
     """Subplot dict/SC
@@ -30,7 +33,7 @@ def my_subplot(data, dims, name, save_path):
 def plot_dict(model, save_path):
     """Plot covolutional dictionary
     """
-    cd = model.conv_dictionary.numpy()
+    cd = model.conv_dictionary.cpu().numpy()
 
     in_ch, kc, k_rows, k_cols = cd.shape
 
@@ -47,7 +50,7 @@ def plot_dict(model, save_path):
 def evaluate_csc(model, img_n, save_path, im_name):
     """Plot CSC
     """
-    csc = model.forward_enc(img_n.unsqueeze(0)).detach().numpy()
+    csc = model.forward_enc(img_n.unsqueeze(0)).detach().cpu().numpy()
     _, depth, rows, cols = csc.shape
 
     sc_per_col = int(np.sqrt(depth))
@@ -65,7 +68,9 @@ def evaluate(args):
     noise = test_args['noise']
 
     model = test_denoise.restore_model(model_args, model_path)
-    testset = test_denoise.create_dataset(tst_ims, noise)
+    model = model.cuda() if USE_CUDA else model
+
+    testset = test_denoise.create_famous_dataset(tst_ims, noise)
     log_dir = os.path.dirname(model_path)
 
     plot_dict(model, log_dir)
@@ -78,7 +83,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--arg_file', default='./my_args.json')
+    parser.add_argument('--args_file', default='./my_args.json')
     args_file = parser.parse_args().arg_file
 
     _args = arguments.load_args(args_file)
