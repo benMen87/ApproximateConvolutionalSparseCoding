@@ -1,6 +1,7 @@
 from __future__ import division
 from torch.autograd import Variable
 import torch.utils.data as data
+from functools import partial
 import torch
 import numpy as np
 import os
@@ -16,13 +17,61 @@ def load_img(filepath, convert='L'):
     img = Variable(torch.from_numpy(img[None,...]),requires_grad=False).float()
     return img
 
+def find_file_in_folder(folder, file_name):
+    for f in os.listdir(folder):
+        f_split = os.path.splitext(f)
+        if file_name == f_split[0]:
+            break
+    else:
+        return None
+    return os.path.join(folder, f)
+
+
+def get_images_from_file_names(img_dir, file_of_filenames):
+    find_file = partial(find_file_in_folder, img_dir)
+    file_names = []
+    with open(file_of_filenames, 'r') as fp:
+        for fname in fp:
+            full_fname = find_file(fname.rstrip())
+
+            if full_fname is None:
+                raise ValueError(
+                    f"missing file {fname} in folder {img_dir}"
+                )
+            file_names.append(full_fname)
+    return file_names
+
 class DatasetFromFolder(data.Dataset):
-    def __init__(self, image_dir, pre_transform, inputs_transform, use_cuda=True):
+    def __init__(self, image_dir, pre_transform, inputs_transform,
+                 file_of_filenames=None, use_cuda=True):
+        """
+        Dataset that each data is a file in folder
+        There may be given a file that spesices what type of files to load.
+
+        Args:
+            image_dir(str): folder with data images for dataset
+            pre_transform(fn): function on all data (such as basic scaling)
+            inputs_transform(fn): function on input data such as shift adding
+                noise etc.
+            file_of_filenames(str, optional): path to file that contains names
+            of specific files to load
+
+            inputs_transform(fn):
+
+        """
         super(DatasetFromFolder, self).__init__()
-        self._image_filenames = [join(image_dir, x) for x in listdir(image_dir) if is_image_file(x)]
         self.pre_transform = pre_transform
         self.inputs_transform = inputs_transform
         self._use_cuda = use_cuda
+
+        if file_of_filenames is None:
+            self._image_filenames = [
+                join(image_dir, x) for x in listdir(image_dir) if is_image_file(x)
+            ]
+        else:
+            self._image_filenames = get_images_from_file_names(image_dir,
+                                                               file_of_filenames)
+
 
     @property
     def image_filenames(self):
@@ -45,7 +94,6 @@ class DatasetFromFolder(data.Dataset):
 
     def __len__(self):
         return len(self._image_filenames)
-
 
 class DatasetFromNPZ(data.Dataset):
     def __init__(self, npz_path, key, pre_transform, inputs_transform, use_cuda=True):
@@ -73,3 +121,13 @@ class DatasetFromNPZ(data.Dataset):
     def __len__(self):
         return len(self._targets)
 
+def debug():
+    dset = DatasetFromFolder(
+        '/data/VOCdevkit/VOC2010/JPEGImages',
+        pre_transform=lambda x: x,
+        inputs_transform=lambda x: x,
+        file_of_filenames='./pascal2010_test_imgs.txt'
+    )
+
+if __name__ == '__main__':
+    debug()

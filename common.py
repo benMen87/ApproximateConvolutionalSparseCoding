@@ -5,6 +5,9 @@ from torch.autograd import Variable
 import torch.nn as nn
 import numpy as np
 
+def project_dir():
+    return os.path.dirname(os.path.realpath(__file__))
+
 def to_np(_x): return _x.data.cpu().numpy()
 
 def I(_x): return _x

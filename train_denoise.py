@@ -66,7 +66,7 @@ def step(model, img, img_n, optimizer, criterion, compare_loss_thrsh=1e7):
     loss = criterion(results, targets)
     loss.backward()
 
-    # torch.nn.utils.clip_grad_value_(model.parameters(), 0.4)
+    torch.nn.utils.clip_grad_value_(model.parameters(), 10)
     optimizer.step()
 
     return float(loss), output.cpu()
@@ -156,7 +156,7 @@ def train(model, args):
     valid_every = int(0.1 * len(train_loader))
 
     gamma = 0.1 if model.ista_iters < 15 else\
-            0.1 * (1 / model.ista_iters)**0.5
+            0.1 * (20 / args['noise']) * (1 / model.ista_iters)**0.5
 
     scheduler = lr_scheduler.StepLR(optimizer, step_size=3, gamma=gamma)
 
@@ -254,8 +254,8 @@ def main(args_file):
             args['model_args'],
             model_path,
             args['train_args']['noise'],
-            args['test_args']['testset_path'],
-            args['train_args']['dataset_path']
+            args['test_args']['testset_famous_path'],
+            args['train_args']['testset_pascal_path']
         )
         args['test_args']['final_famous_psnrs'] = dict(zip(test_names, psnrs))
         args['test_args']['final_psnrs'] = {'global_avg': {'ours': ours_psnr,

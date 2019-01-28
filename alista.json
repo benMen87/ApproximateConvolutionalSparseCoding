@@ -6,8 +6,8 @@
          "batch_size": 10,
          "learning_rate": 0.001,
          "dataset_path": "/data/hillel/data_sets/pascal320_notst.npz",
-	 "log_dir": "/data/home/hillel/projects/lista_admm/saved_models",
-	 "name": "alista"
+	     "log_dir": "/data/home/hillel/projects/lista_admm/saved_models",
+	     "name": "alista"
      },
      "model_args":
      {
@@ -24,7 +24,8 @@
         "noise": 20,
         "load_path": "",
         "name": "alista",
-        "testset_path": "/data/hillel/data_sets/test_images/"
+        "testset_famous_path": "/data/hillel/data_sets/test_images/",
+        "testset_pascal_path": "/data/VOCdevkit/VOC2010/JPEGImages/"
 
      }
 }

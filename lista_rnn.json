@@ -26,7 +26,8 @@
         "noise": 20,
         "load_path": "/home/hillel/projects/lista_admm/saved_models/test_run_1/saved/epoch_1",
         "name": "fix_admm_eq",
-        "testset_path": "/data/hillel/data_sets/test_images/"
+        "testset_famous_path": "/data/hillel/data_sets/test_images/",
+        "testset_pascal_path": "/data/VOCdevkit/VOC2010/JPEGImages/"
 
      }
 }
