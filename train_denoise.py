@@ -257,7 +257,7 @@ def main(args_file):
             args['test_args']['testset_path'],
             args['train_args']['dataset_path']
         )
-        args['test_args']['final_psnrs'] = dict(zip(test_names, psnrs))
+        args['test_args']['final_famous_psnrs'] = dict(zip(test_names, psnrs))
         args['test_args']['final_psnrs'] = {'global_avg': {'ours': ours_psnr,
                                                            'bm3d': bm3d_psnr}}
         arguments.logdictargs(os.path.join(log_dir, 'params.json'), args)
