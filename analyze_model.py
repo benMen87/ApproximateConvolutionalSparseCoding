@@ -29,6 +29,7 @@ def my_subplot(data, dims, name, save_path):
 
     plt.savefig(os.path.join(save_path, name))
     plt.clf()
+    plt.close()
 
 def plot_dict(model, save_path):
     """Plot covolutional dictionary
@@ -47,16 +48,34 @@ def plot_dict(model, save_path):
     my_subplot(cd, [kers_per_row, kers_per_col], 'conv-dictionary', save_path)
 
 
+def evaluate_thrshold(model, save_path, name):
+    thrshold_avg = [float(model.softthrsh0.thrshold.mean())]
+
+    for thrsh in model.softthrsh1:
+        thrshold_avg.append(float(thrsh.thrshold.mean()))
+
+    plt.plot(range(len(thrshold_avg)), thrshold_avg, '*')
+    plt.savefig(os.path.join(save_path, name))
+    plt.clf()
+
 def evaluate_csc(model, img_n, save_path, im_name):
     """Plot CSC
     """
-    csc = model.forward_enc(img_n.unsqueeze(0)).detach().cpu().numpy()
-    _, depth, rows, cols = csc.shape
+    sparse_code_delta = []
+    for csc, csc_res, lista_iter in model.forward_enc_generataor(img_n.unsqueeze(0)):
+        _, depth, rows, cols = csc.shape
+        sc_per_col = int(np.sqrt(depth))
+        sc_per_row = sc_per_col + (depth - sc_per_col**2)
 
-    sc_per_col = int(np.sqrt(depth))
-    sc_per_row = sc_per_col + (depth - sc_per_col**2)
+        avg_sparsity = np.mean(np.sum(np.abs(csc.detach().cpu().numpy()), axis=(0, 1, 2)))
+        print(f'avg sparsity for layer {lista_iter} is {avg_sparsity}')
 
-    my_subplot(csc, [sc_per_row, sc_per_col], f'{im_name}-sparse-feature-maps', save_path)
+        my_subplot(csc.detach().cpu().numpy(), [sc_per_row, sc_per_col],
+                   f'{im_name}-sparse-feature-maps-lista-step{lista_iter}', save_path)
+        sparse_code_delta.append(float(csc_res.abs().mean()))
+    plt.plot(range(len(sparse_code_delta)), sparse_code_delta, '*')
+    plt.savefig(os.path.join(save_path, f'{im_name}-csc-delta'))
+    plt.clf()
 
 
 def evaluate(args):
@@ -64,18 +83,18 @@ def evaluate(args):
     test_args = args['test_args']
     model_args = args['model_args']
     model_path = test_args['load_path']
-    tst_ims = test_args["testset_path"]
+    tst_ims = test_args["testset_famous_path"]
     noise = test_args['noise']
 
     model = test_denoise.restore_model(model_args, model_path)
     model = model.cuda() if USE_CUDA else model
 
-    testset = test_denoise.create_famous_dataset(tst_ims, noise)
+    testset = test_denoise.create_famous_dataset(tst_ims, noise, 0)
     log_dir = os.path.dirname(model_path)
 
     plot_dict(model, log_dir)
     evaluate_csc(model, testset[7][0], log_dir, testset.image_filenames[7])
-    evaluate_csc(model, testset[0][0], log_dir, testset.image_filenames[0])
+    evaluate_thrshold(model, log_dir, 'thrshold')
 
 def main():
     """Run test on trained model.

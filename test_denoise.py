@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 import common
 from common import gaussian, normilize, nhwc_to_nchw, to_np
 import numpy as np
@@ -9,7 +10,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pybm3d
-
+import scipy.misc
 from convsparse_net import LISTAConvDict
 from datasets import  DatasetFromNPZ
 import arguments
@@ -24,8 +25,17 @@ def plot_res(img, img_n, res, name, log_path, other_res=None):
     img_n = np.squeeze(img_n)
     res = np.squeeze(res)
 
+    def im_path(typ):
+        return  os.path.join(log_path, '{}_{}.png'.format(typ, name))
+
+    scipy.misc.toimage(img * 255, cmin=0.0, cmax=255).save(im_path('orig'))
+    scipy.misc.toimage(img_n * 255, cmin=0.0, cmax=255).save(im_path('noisy'))
+    scipy.misc.toimage(res * 255, cmin=0.0, cmax=255).save(im_path('ours'))
+
     if other_res is not None:
         sub_typ = 221
+        scipy.misc.toimage(other_res * 255, cmin=0.0,
+                           cmax=255).save(im_path('other'))
     else:
         sub_typ = 131
 
@@ -65,9 +75,13 @@ def restore_model(model_args, saved_model_path):
     common.load_eval(saved_model_path, model)
     return model
 
-def create_famous_dataset(test_path, noise):
-    def pre_process_fn(_x): return normilize(_x, 255)
-    def input_process_fn(_x): return gaussian(_x, is_training=True, mean=0, stddev=normilize(noise, 255))
+def create_famous_dataset(test_path, noise, pad):
+
+    def pre_process_fn(_x):
+        return normilize(_x, 255)
+
+    def input_process_fn(_x):
+        return gaussian(_x, is_training=True, mean=0, stddev=normilize(noise, 255))
 
     return DatasetFromFolder(
                 test_path,
@@ -76,9 +90,14 @@ def create_famous_dataset(test_path, noise):
                 inputs_transform=input_process_fn
             )
 
-def create_test_dataset(test_path, noise):
-    def pre_process_fn(_x): return normilize(_x, 255)
-    def input_process_fn(_x): return gaussian(_x, is_training=True, mean=0, stddev=normilize(noise, 255))
+def create_test_dataset(test_path, noise, pad):
+
+    def pre_process_fn(_x):
+        return normilize(_x, 255)
+
+    def input_process_fn(_x):
+        return gaussian(_x, is_training=True, mean=0, stddev=normilize(noise, 255))
+
     file_of_filenames =\
             os.path.join(common.project_dir(), 'pascal2010_test_imgs.txt')
 
@@ -92,13 +111,15 @@ def create_test_dataset(test_path, noise):
 
 def avarge_psnr_testset(model, test_loader, border, noise):
 
+    padder =  nn.ReflectionPad2d(border)
+
     def _to_np(_img):
         return to_np(_img)[0, 0, border:-border, border:-border]
 
     def _bm3d(_img_n):
         return -1
         res = pybm3d.bm3d.bm3d(to_np(_img_n)[0, 0, ...], noise)
-        res[np.where(np.isnan(res))] = 0
+        #res[np.where(np.isnan(res))] = 0
         return res[border:-border, border:-border]
 
     ours_psnr = 0
@@ -109,26 +130,30 @@ def avarge_psnr_testset(model, test_loader, border, noise):
     img_count = 0
     for img, img_n in test_loader:
 
+        img = padder(img)
+        img_n = padder(img_n)
+
         output, _ = model(img_n)
 
         np_img = _to_np(img)
         np_output = np.clip(_to_np(output), 0, 1)
-        bm3d_img = _bm3d(img_n)
+        bm3d_img = np.clip(_bm3d(img_n), 0, 1)
 
         bm3d_psnr += common.psnr(np_img, bm3d_img)
-        ours_psnr += common.psnr(np_img, np_output, False)
+        ours_psnr += common.psnr(np_img, np_output)
 
         img_count += 1
         if img_count == avg_over:
             break
-    bm3d_psnr = bm3d_psnr / avg_over
-    ours_psnr = ours_psnr / avg_over
-    print(f'testset avargs of {avg_over} psnr ours - {ours_psnr}, bm3d - {bm3d_psnr}')
+    bm3d_psnr = bm3d_psnr / img_count
+    ours_psnr = ours_psnr / img_count
+    print(f'testset avargs of {img_count} psnr ours - {ours_psnr}, bm3d - {bm3d_psnr}')
     return ours_psnr, bm3d_psnr
 
 def famous_images_teset(model, test_loader, image_names, border, noise):
     """Run and save tests on specific images.
     """
+    padder =  nn.ReflectionPad2d(border)
 
     def _to_np(x):
         return to_np(x)[0, 0, border:-border, border:-border]
@@ -143,7 +168,11 @@ def famous_images_teset(model, test_loader, image_names, border, noise):
     res_array = []
     idx = 0
     for test_data, test_name in zip(test_loader, image_names):
+
         img, img_n = test_data
+        img = padder(img)
+        img_n = padder(img_n)
+
         output, _ = model(img_n)
 
         np_img = _to_np(img)
@@ -176,16 +205,17 @@ def test(args, saved_model_path, noise, famous_path, testset_path=None):
         model = model.cuda()
 
     norm_noise = common.normilize(noise, 255)
+    padding = 20
 
     if testset_path is not None:
-        testset = create_test_dataset(testset_path, noise)
+        testset = create_test_dataset(testset_path, noise, padding)
         test_loader = DataLoader(testset)
         ours_psnr, bm3d_psnr = avarge_psnr_testset(model, test_loader,
-                                                   args["ks"]//2, norm_noise)
+                                                   padding, norm_noise)
     else:
         ours_psnr = bm3d_psnr = 0
 
-    testset = create_famous_dataset(famous_path, noise)
+    testset = create_famous_dataset(famous_path, noise, padding)
     file_names = testset.image_filenames
     famous_loader = DataLoader(testset)
 
@@ -194,7 +224,7 @@ def test(args, saved_model_path, noise, famous_path, testset_path=None):
                 model,
                 famous_loader,
                 file_names,
-                args["ks"]//2,
+                padding,
                 norm_noise)
 
 

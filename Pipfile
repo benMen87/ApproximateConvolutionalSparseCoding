@@ -7,12 +7,11 @@ name = "pypi"
 "pybm3d" = "*"
 
 [packages]
-pytorch-msssim = {git = "https://github.com/jorge-pessoa/pytorch-msssim.git"}
-pytorch-ssim = {git = "https://github.com/jorge-pessoa/pytorch-msssim.git", editable = true}
 torch = "*"
 torchvision = "*"
 matplotlib = "*"
 ipython = "*"
+scipy = "*"
 
 [requires]
 python_version = "3.6"

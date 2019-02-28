@@ -10,9 +10,7 @@ import torch.nn.init
 from torch.nn import Parameter
 import numpy as np
 
-from common import conv as dp_conv
-from common import flip, I
-
+from common import flip
 
 class LISTAConvDict(nn.Module):
     """
@@ -21,11 +19,9 @@ class LISTAConvDict(nn.Module):
     """
     def __init__(self, num_input_channels=3, num_output_channels=3,
                  kc=64, ks=7, ista_iters=3, iter_weight_share=True,
-                 share_decoder=False,
-                 pad='reflection'):
+                 share_decoder=False):
 
         super(LISTAConvDict, self).__init__()
-
         self._ista_iters = ista_iters
         self._layers = 1 if iter_weight_share else ista_iters
 
@@ -46,8 +42,8 @@ class LISTAConvDict(nn.Module):
             """Conv layer wrapper
             """
             return nn.ModuleList(
-                [dp_conv(in_f=in_ch, out_f=out_ch, kernel_size=ks,
-                         stride=1, bias=False, pad=pad) for _ in
+                [nn.Conv2d(in_ch, out_ch, ks,
+                           stride=1, padding=ks//2, bias=False) for _ in
                  range(count)])
 
         self.encode_conv0 = build_conv_layers(num_input_channels, kc, 1)[0]
@@ -84,7 +80,7 @@ class LISTAConvDict(nn.Module):
     def conv_dictionary(self):
         """Get the weights of convolutoinal dictionary
         """
-        return self.decode_conv1[0].weight.data
+        return self.decode_conv1.weight.data
 
     def forward_enc(self, inputs):
         """Conv LISTA forwrd pass
@@ -93,13 +89,29 @@ class LISTAConvDict(nn.Module):
 
         for _itr, lyr in\
             zip(range(self._ista_iters),
-                cycle(range(self._layers))):
+                    cycle(range(self._layers))):
 
             sc_residual = self.encode_conv1[lyr](
                 inputs - self.decode_conv0[lyr](csc)
             )
             csc = self.softthrsh1[lyr](csc + sc_residual)
         return csc
+
+    def forward_enc_generataor(self, inputs):
+        """forwar encoder generator
+        Use for debug and anylize model.
+        """
+        csc = self.softthrsh0(self.encode_conv0(inputs))
+
+        for itr, lyr in\
+            zip(range(self._ista_iters),
+                    cycle(range(self._layers))):
+
+            sc_residual = self.encode_conv1[lyr](
+                inputs - self.decode_conv0[lyr](csc)
+            )
+            csc = self.softthrsh1[lyr](csc + sc_residual)
+            yield csc, sc_residual, itr
 
     def forward_dec(self, csc):
         """
@@ -121,10 +133,22 @@ class SoftshrinkTrainable(nn.Module):
     def __init__(self, _lambd):
         super(SoftshrinkTrainable, self).__init__()
         self._lambd = _lambd
+
+    @property
+    def thrshold(self):
+        return self._lambd
 #        self._lambd.register_hook(print)
 
     def forward(self, inputs):
+        """ sign(inputs) * (abs(inputs)  - thrshold)"""
+        _inputs = inputs
+        _lambd = self._lambd.clamp(0).unsqueeze(-1).unsqueeze(-1)
+        result = torch.sign(_inputs) * (F.relu(torch.abs(_inputs) - _lambd))
+        return result
+
+    def _forward(self, inputs):
+        """ sign(inputs) * (abs(inputs)  - thrshold)"""
         _lambd = self._lambd.clamp(0)
-        pos = inputs - _lambd.unsqueeze(2).unsqueeze(3).expand_as(inputs)
-        neg = (-1) * inputs - _lambd.unsqueeze(2).unsqueeze(3).expand_as(inputs)
-        return pos.clamp(min=0) - neg.clamp(min=0)
+        pos = (inputs - _lambd.unsqueeze(-1).unsqueeze(-1))
+        neg = ((-1) * inputs - _lambd.unsqueeze(-1).unsqueeze(-1))
+        return (pos.clamp(min=0) - neg.clamp(min=0))

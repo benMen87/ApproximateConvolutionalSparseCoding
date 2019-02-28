@@ -31,8 +31,10 @@ def _pprint(stuff):
 
 def get_train_valid_loaders(dataset_path, batch_size, noise):
 
-    def pre_process_fn(_x): return normilize(nhwc_to_nchw(_x), 255)
-    def input_process_fn(_x): return gaussian(_x, is_training=True, mean=0, stddev=normilize(noise, 255))
+    def pre_process_fn(_x):
+        return normilize(nhwc_to_nchw(_x), 255)
+    def input_process_fn(_x):
+        return gaussian(_x, is_training=True, mean=0, stddev=normilize(noise, 255))
 
     train_loader = DatasetFromNPZ(npz_path=dataset_path,
                               key='TRAIN', use_cuda=USE_CUDA,
@@ -49,24 +51,21 @@ def get_train_valid_loaders(dataset_path, batch_size, noise):
     return train_loader, valid_loader
 
 
-def step(model, img, img_n, optimizer, criterion, compare_loss_thrsh=1e7):
+def step(model, img, img_n, optimizer, criterion):
     """ Train step !!"""
     optimizer.zero_grad()
 
     output, _sc_n = model(img_n)
 
-    results = [
-        output[..., 3:-3, 3:-3],
-    ]
+    results = output[..., 20:-20, 20:-20]
 
-    targets = [
-        img[..., 3:-3, 3:-3],
-    ]
+    targets = img[..., 20:-20, 20:-20]
 
     loss = criterion(results, targets)
     loss.backward()
 
-    torch.nn.utils.clip_grad_value_(model.parameters(), 10)
+    # torch.nn.utils.clip_grad_value_(model.decode_conv1.parameters(), 15)
+
     optimizer.step()
 
     return float(loss), output.cpu()
@@ -85,8 +84,12 @@ def maybe_save_model(
 
     if not other_values or curr_val > max(other_values):
         path = save_train(save_path, model, opt, schd, epoch)
-        print('saving model at path %s'%path)
+        print(f'saving model at path {path} new max psnr {curr_val}')
         clean(save_path, save_count=10)
+    elif curr_val < max(other_values) - 1:
+        load_train(path, model, opt)
+        schd.step()
+        print(f'model diverge reloded last model state current lr {schd.get_lr()}')
 
     return path
 
@@ -97,19 +100,24 @@ def run_valid(model, data_loader, criterion, logdir, name, should_plot=False):
     loss = 0
     psnr = 0
 
+    def _to_np(x): return to_np(x)[..., 20:-20, 20:-20]
+
     for img, img_n in data_loader:
         _out, _ = model(img_n)
-        np_output = np.clip(to_np(_out), 0, 1)
-        loss += float(criterion(img.data, _out.data))
-        psnr += common.psnr(img.data.cpu().numpy(), np_output)
+        loss += float(criterion(img.data[..., 20:-20, 20:-20],
+                                _out.data[..., 20:-20, 20:-20]))
+
+        np_output = np.clip(_to_np(_out), 0, 1)
+        np_img = _to_np(img)
+        psnr += common.psnr(np_img, np_output)
 
     img, img_n = data_loader.dataset[0]
     output, _ = model(img_n.unsqueeze(0))
     if should_plot:
         plot_res(
-            img.data.cpu().numpy(),
-            img_n.data.cpu().numpy(),
-            output.data.cpu().numpy(),
+            _to_np(img),
+            _to_np(img_n),
+            _to_np(output),
             name,
             logdir
         )
@@ -131,16 +139,33 @@ def plot_losses(train_loss, valid_loss, valid_psnr, path):
 
 def train(model, args):
 
-    optimizer = optim.Adam(model.parameters(), lr=args['learning_rate'])
+    #optimizer = optim.Adam(
+    #    [
+    #        {'params': model.softthrsh0.parameters()},
+    #        {'params': model.softthrsh1.parameters()},
+    #        {'params': model.encode_conv0.parameters()},
+    #        {'params': model.encode_conv1.parameters()},
+    #        {'params': model.decode_conv1.parameters(), 'lr':
+    #         args['learning_rate']},
+    #    ],
+    #    lr=args['learning_rate']
+    #)
+    optimizer = optim.Adam(
+        model.parameters(),
+        lr=args['learning_rate']
+    )
+    break_down_sum = sum(map(common.count_parameters, [model.softthrsh0, model.encode_conv0,
+                                                       model.softthrsh1, model.encode_conv1,
+                                                       model.decode_conv1]))
+
     # ReduceLROnPlateau(optimizer, 'min', verbose=True)
     train_loader, valid_loader = get_train_valid_loaders(args['dataset_path'], args['batch_size'], args['noise'])
 
     valid_loss = reconsturction_loss(use_cuda=True)
 
-
     criterion = common.get_criterion(
-        losses_types=['l1'],
-        factors=[1.0],
+        losses_types=['l1', 'l2'] , #, 'msssim'],
+        factors=[0.8, 0.2],
         use_cuda=USE_CUDA
     )
 
@@ -155,8 +180,9 @@ def train(model, args):
     compare_loss = 1
     valid_every = int(0.1 * len(train_loader))
 
-    gamma = 0.1 if model.ista_iters < 15 else\
-            0.1 * (20 / args['noise']) * (1 / model.ista_iters)**0.5
+    gamma = 0.1
+    #if model.ista_iters < 20 else\
+    #        0.1 * (20 / args['noise']) * (1 / model.ista_iters)**0.5
 
     scheduler = lr_scheduler.StepLR(optimizer, step_size=3, gamma=gamma)
 
@@ -172,8 +198,7 @@ def train(model, args):
         for img, img_n in train_loader:
             itr += 1
 
-            _loss, _ = step(model, img, img_n, optimizer, criterion=criterion,
-                            compare_loss_thrsh=compare_loss)
+            _loss, _ = step(model, img, img_n, optimizer, criterion=criterion)
             running_loss += float(_loss)
             compare_loss += 1e-1 * float(_loss)
 
@@ -229,8 +254,8 @@ def build_model(args):
     if USE_CUDA:
         model = model.cuda()
 
-    print('parameter count {}'.format(common.count_parameters(model)))
     print(model)
+    print('parameter count {}'.format(common.count_parameters(model)))
 
     return model
 
@@ -249,13 +274,13 @@ def main(args_file):
     args['train_args']['final_psnr'] = valid_psnr
     arguments.logdictargs(os.path.join(log_dir, 'params.json'), args)
 
-    if args['test_args']['testset_path']:
+    if args['test_args']['testset_famous_path']:
         psnrs, res, test_names, ours_psnr, bm3d_psnr = test_denoise.test(
             args['model_args'],
             model_path,
             args['train_args']['noise'],
             args['test_args']['testset_famous_path'],
-            args['train_args']['testset_pascal_path']
+            args['test_args']['testset_pascal_path']
         )
         args['test_args']['final_famous_psnrs'] = dict(zip(test_names, psnrs))
         args['test_args']['final_psnrs'] = {'global_avg': {'ours': ours_psnr,

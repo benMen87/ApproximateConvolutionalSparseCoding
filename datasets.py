@@ -13,7 +13,7 @@ def is_image_file(filename):
     return any(filename.endswith(extension) for extension in [".png", ".jpg", ".jpeg"])
 
 def load_img(filepath, convert='L'):
-    img = np.array(Image.open(filepath).convert(convert).resize((320, 320)))
+    img = np.array(Image.open(filepath).convert(convert))
     img = Variable(torch.from_numpy(img[None,...]),requires_grad=False).float()
     return img
 
