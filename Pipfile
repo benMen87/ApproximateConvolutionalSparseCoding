@@ -1,0 +1,17 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[dev-packages]
+"pybm3d" = "*"
+
+[packages]
+torch = "*"
+torchvision = "*"
+matplotlib = "*"
+ipython = "*"
+scipy = "*"
+
+[requires]
+python_version = "3.6"

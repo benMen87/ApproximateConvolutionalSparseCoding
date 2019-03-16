@@ -1,0 +1,29 @@
+{
+    "train_args": 
+    {
+        "noise": 25,
+        "epoch": 30,
+        "batch_size": 15,
+        "learning_rate": 0.00001,
+        "dataset_path": "/data/hillel/data_sets/pascal_120.npz",
+        "log_dir": "/data/home/hillel/projects/lista_admm/saved_models/",
+	"load_path": "/data/home/hillel/projects/lista_admm/saved_models/alista-20iters-noise25-rnn_4/epoch_19",
+        "name": "alista-20iters-noise25-rnn"
+    },
+    "model_args": {
+        "num_input_channels": 1,
+        "num_output_channels": 1,
+        "kc": 64,
+        "ks": 7,
+        "ista_iters": 20,
+        "iter_weight_share": true,
+        "share_decoder": false
+    },
+    "test_args": {
+        "noise": 25,
+        "load_path": "",
+        "name": "alista",
+        "testset_famous_path": "/data/hillel/data_sets/test_images/",
+        "testset_pascal_path": "/data/VOCdevkit/VOC2010/JPEGImages/"
+    }
+}

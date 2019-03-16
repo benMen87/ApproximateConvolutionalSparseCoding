@@ -1,0 +1,28 @@
+{
+    "train_args": 
+    {
+        "noise": 25,
+        "epoch": 70,
+        "batch_size": 10,
+        "learning_rate": 1e-4,
+        "dataset_path": "/data/hillel/data_sets/pascal_120.npz",
+        "log_dir": "/data/home/hillel/projects/lista_admm/saved_models/",
+        "name": "alista-20iters-noise25-decouple-dict-kc3"
+    },
+    "model_args": {
+        "num_input_channels": 1,
+        "num_output_channels": 1,
+        "kc": 64,
+        "ks": 3,
+        "ista_iters": 20,
+        "iter_weight_share": false,
+        "share_decoder": false
+    },
+    "test_args": {
+        "noise": 25,
+        "load_path": "",
+        "name": "alista",
+        "testset_famous_path": "/data/hillel/data_sets/test_images/",
+        "testset_pascal_path": "/data/VOCdevkit/VOC2010/JPEGImages/"
+    }
+}

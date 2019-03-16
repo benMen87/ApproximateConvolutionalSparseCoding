@@ -1,0 +1,83 @@
+{
+    "train_args": {
+        "noise": 25,
+        "epoch": 35,
+        "batch_size": 10,
+        "learning_rate": 0.0001,
+        "dataset_path": "pascal_120.npz",
+        "log_dir": "saved_models/acsc4",
+        "load_path": "saved_models/acsc4/epoch_34",
+        "name": "acsc4",
+        "save_dir": "saved_models/acsc4",
+        "final_loss": 0.025190426804241724,
+        "final_psnr": 30.018855998967343
+    },
+    "model_args": {
+        "num_input_channels": 1,
+        "num_output_channels": 1,
+        "kc": 64,
+        "ks": 7,
+        "ista_iters": 20,
+        "iter_weight_share": false,
+        "share_decoder": false
+    },
+    "test_args": {
+        "noise": 25,
+        "load_path": "saved_models/acsc4/epoch_34",
+        "name": "acsc4",
+        "testset_famous_path": "test_images/",
+        "testset_pascal_path": "/data/VOCdevkit/VOC2010/JPEGImages/",
+        "final_famous_psnrs": {
+            "peppers256": {
+                "ours": 30.992401754802422,
+                "bm3d": 30.249573159983143
+            },
+            "fingerprint": {
+                "ours": 24.748351573864905,
+                "bm3d": 25.13551971742649
+            },
+            "boat": {
+                "ours": 28.304172229392957,
+                "bm3d": 27.761143177596722
+            },
+            "house": {
+                "ours": 32.93928662485311,
+                "bm3d": 32.45491157107198
+            },
+            "montage": {
+                "ours": 32.89477847353866,
+                "bm3d": 31.398643206487726
+            },
+            "Cameraman256": {
+                "ours": 30.096991883470984,
+                "bm3d": 29.350547033127988
+            },
+            "hill": {
+                "ours": 28.50975618445147,
+                "bm3d": 28.16302686432372
+            },
+            "Lena512": {
+                "ours": 30.408337204352197,
+                "bm3d": 29.90928276269846
+            },
+            "couple": {
+                "ours": 28.28750532896997,
+                "bm3d": 27.611570066303678
+            },
+            "man": {
+                "ours": 28.205552343402786,
+                "bm3d": 27.591219955487666
+            },
+            "barbara": {
+                "ours": 27.23355980952948,
+                "bm3d": 27.846831106236124
+            }
+        },
+        "final_psnrs": {
+            "global_avg": {
+                "ours": 28.699174356991254,
+                "bm3d": 6.220612196760391
+            }
+        }
+    }
+}

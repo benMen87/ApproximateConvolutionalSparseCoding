@@ -1,0 +1,28 @@
+{
+    "train_args": {
+        "noise": 25,
+        "epoch": 40,
+        "batch_size": 15,
+        "learning_rate": 0.001,
+        "dataset_path": "pascal_120.npz",
+        "load_path": "saved_models/acsc2/epoch_20",
+        "log_dir": "saved_models/",
+        "name": "acsc2"
+    },
+    "model_args": {
+        "num_input_channels": 1,
+        "num_output_channels": 1,
+        "kc": 64,
+        "ks": 7,
+        "ista_iters": 20,
+        "iter_weight_share": true,
+        "share_decoder": true
+    },
+    "test_args": {
+        "noise": 25,
+        "load_path": "saved_models/acsc2/epoch_20",
+        "name": "acsc2",
+        "testset_famous_path": "test_images/",
+        "testset_pascal_path": "/data/VOCdevkit/VOC2010/JPEGImages/"
+    }
+}
