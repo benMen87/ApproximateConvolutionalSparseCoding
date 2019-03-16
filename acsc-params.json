@@ -5,9 +5,9 @@
         "epoch": 70,
         "batch_size": 10,
         "learning_rate": 1e-4,
-        "dataset_path": "/data/hillel/data_sets/pascal_120.npz",
-        "log_dir": "/data/home/hillel/projects/lista_admm/saved_models/",
-        "name": "alista-20iters-noise25-decouple-dict-kc3"
+        "dataset_path": "pascal_120.npz",
+        "log_dir": "saved_models/",
+        "name": "acsc"
     },
     "model_args": {
         "num_input_channels": 1,
@@ -21,8 +21,8 @@
     "test_args": {
         "noise": 25,
         "load_path": "",
-        "name": "alista",
-        "testset_famous_path": "/data/hillel/data_sets/test_images/",
-        "testset_pascal_path": "/data/VOCdevkit/VOC2010/JPEGImages/"
+        "name": "acsc",
+        "testset_famous_path": "test_images/",
+        "testset_pascal_path": "VOCdevkit/VOC2010/JPEGImages/"
     }
 }
