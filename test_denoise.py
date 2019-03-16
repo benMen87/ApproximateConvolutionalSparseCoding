@@ -207,12 +207,14 @@ def test(args, saved_model_path, noise, famous_path, testset_path=None):
     norm_noise = common.normilize(noise, 255)
     padding = 20
 
-    if testset_path is not None:
+    if testset_path is not None and os.path.isdir(testset_path):
         testset = create_test_dataset(testset_path, noise, padding)
         test_loader = DataLoader(testset)
         ours_psnr, bm3d_psnr = avarge_psnr_testset(model, test_loader,
                                                    padding, norm_noise)
     else:
+        print('testset path was not provided or does not exsist on machine'
+              +' skipping to famouse images testset')
         ours_psnr = bm3d_psnr = 0
 
     testset = create_famous_dataset(famous_path, noise, padding)

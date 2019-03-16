@@ -1,0 +1,40 @@
+{
+    "train_args": {
+        "noise": 25,
+        "epoch": 30,
+        "batch_size": 15,
+        "learning_rate": 1e-05,
+        "dataset_path": "pascal_120.npz",
+        "log_dir": "saved_models/acsc1",
+        "load_path": "saved_models/acsc1/epoch_28",
+        "name": "acsc1",
+        "save_dir": "saved_models/acsc1",
+        "final_loss": 0.02842339333880227,
+        "final_psnr": 28.915733976320833
+    },
+    "model_args": {
+        "num_input_channels": 1,
+        "num_output_channels": 1,
+        "kc": 64,
+        "ks": 7,
+        "ista_iters": 20,
+        "iter_weight_share": true,
+        "share_decoder": false
+    },
+    "test_args": {
+        "noise": 25,
+        "load_path": "saved_models/acsc1/epoch_28",
+        "name": "alista",
+        "testset_famous_path": "test_images/",
+        "testset_pascal_path": "/data/VOCdevkit/VOC2010/JPEGImages/",
+        "final_famous_psnrs": {
+    
+        },
+        "final_psnrs": {
+            "global_avg": {
+                "ours": 27.859607940128985,
+                "bm3d": 6.220612196760391
+            }
+        }
+    }
+}
