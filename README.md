@@ -15,7 +15,7 @@ ACSC3| 32.15| 32.87| 30.67| 29.87| 27.18| 29.96| 29.833| 29.81| 29.41|
 ACSC4| **32.268**| **33.25**| **30.7**| **30.03** |27.24| **30.04**| **29.93**| **29.87**| 29.71
 BM3D| 31.97| 32.68| 29.63| 29.51| **27.73**| 29.7| 29.72| 29.42 |**30.64**
 
-![Lena denoise](./images/LenaEval.PNG
+![Lena denoise](./images/LenaEval.PNG)
 
 # Setup
 If the machine a linux with cuda then
