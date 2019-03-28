@@ -18,12 +18,12 @@ BM3D| 31.97| 32.68| 29.63| 29.51| **27.73**| 29.7| 29.72| 29.42 |**30.64**
 ![Lena denoise](./images/LenaEval.PNG)
 
 # Setup
-If the machine a linux with cuda then
-simply setup by running
+For a linux with a cuda
+simply run
 ```bash
-pipenv install --dev
+pip instll pipenv && pipenv install --dev
 ```
-This will install pytorch and rest of dependencies.
+This will install pipenv and pipenv will install the rest of the rest of dependencies specified in the Pipfile.
 If Pipfile does not work then use Python version >= 3.6 and install using pip all dependencies (mostly just pytorch)
 
 # Usage
@@ -45,7 +45,7 @@ python3 xx.py --args_file params.json
 Example for how to set *params.json* file can be found in *./saved_models/acsc[1-4]*.
 
 ## Train
-train will build model and trained where all parameters are givin in *params.json*.
+train will build model and run train session using parameters that are givin in *params.json*.
 *params.json* is updated and coped to log-path specified in *params.json*.
 train will automatically run test and analyze.
 ```bash
@@ -55,7 +55,7 @@ pipenv run python train_denoise.py --args_file params.json
 
 Download npz PASCAL VOC images provided [google drive](https://drive.google.com/open?id=1Ea5DN-LcuLd5ZGDEHeI_zqch5ewR6Sv4
 )
-make sure to specify saved path in *params.json*.
+make sure to specify dataset_path in *params.json*.
 
 ## Test
 test will build the model specified in *params.json*.
@@ -87,7 +87,7 @@ Param file is first set with model + train + test parameter. During train and te
         "epoch": 30,
         "batch_size": 15,
         "learning_rate": 1e-4,
-        "dataset_path": "pascal_120.npz",
+        "dataset_path": "./pascal_120.npz",
         "log_dir": "saved_models/",
         "name": "acsc"
     },
