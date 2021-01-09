@@ -38,13 +38,25 @@ class LISTAConvDict(nn.Module):
             self.softthrsh1 = nn.ModuleList([build_softthrsh()
                                              for _ in range(self._layers)])
 
-        def build_conv_layers(in_ch, out_ch, count):
+        def build_conv_layers(in_ch, out_ch, count, stride=1):
             """Conv layer wrapper
             """
             return nn.ModuleList(
                 [nn.Conv2d(in_ch, out_ch, ks,
-                           stride=1, padding=ks//2, bias=False) for _ in
+                           stride=stride, padding=ks//2, bias=False) for _ in
                  range(count)])
+
+        def build_deconv_layers(in_ch, out_ch, count, stride=1):
+            """decConv layer wrapper
+            """
+            if stdride = 1:
+                return build_conv_layers(in_ch, out_ch, count, stride=1)
+
+            return nn.ModuleList(
+                [nn.ConvTranspose2d(in_ch, out_ch, ks,
+                           stride=stride, padding=ks//2, bias=False) for _ in
+                 range(count)])
+
 
         self.encode_conv0 = build_conv_layers(num_input_channels, kc, 1)[0]
         if iter_weight_share:
