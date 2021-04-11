@@ -21,7 +21,7 @@ BM3D| 31.97| 32.68| 29.63| 29.51| **27.73**| 29.7| 29.72| 29.42 |**30.64**
 For a linux with a cuda
 simply run
 ```bash
-pip instll pipenv && pipenv install --dev
+pip install pipenv && pipenv install --dev
 ```
 This will install pipenv and pipenv will install the rest of the rest of dependencies specified in the Pipfile.
 If Pipfile does not work then use Python version >= 3.6 and install using pip all dependencies (mostly just pytorch)
