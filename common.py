@@ -13,7 +13,7 @@ def to_np(_x): return _x.data.cpu().numpy()
 
 def I(_x): return _x
 
-def normilize(_x, _val=255, shift=0):
+def normalize(_x, _val=255, shift=0):
     return (_x - shift)/ _val
 
 def count_parameters(model):
@@ -47,21 +47,6 @@ def init_model_dir(path, name):
         full_path = get_unique_name(full_path)
     os.mkdir(full_path)
     return full_path
-
-    '''
-        Either string defining an activation function or module (e.g. nn.ReLU)
-    '''
-    if isinstance(act_fun, str):
-        if act_fun == 'LeakyReLU':
-            return nn.LeakyReLU(0.2, inplace=True)
-        elif act_fun == 'ELU':
-            return nn.ELU()
-        elif act_fun == 'none':
-            return nn.Sequential()
-        else:
-            assert False
-    else:
-        return act_fun()
 
 
 def flip(x, dim):
@@ -113,7 +98,7 @@ def delete_pixels(ins, is_training, sample_prob=0.3):
         return ins * mask  + (1 - mask)
     return ins
 
-def reconsturction_loss(distance='l1', use_cuda=True):
+def reconstruction_loss(distance='l1', use_cuda=True):
 
     if distance == 'l1':
         dist = nn.L1Loss()
@@ -124,8 +109,6 @@ def reconsturction_loss(distance='l1', use_cuda=True):
     else:
         raise ValueError(f"unidentified value {distance}")
 
-    #if use_cuda:
-    #    dist = dist.cuda()
     return dist
 
 def get_criterion(losses_types, factors, use_cuda=True):
@@ -138,13 +121,10 @@ def get_criterion(losses_types, factors, use_cuda=True):
     """
     losses = []
     for loss_type in losses_types:
-        losses.append(reconsturction_loss(loss_type))
-
-    #if use_cuda:
-    #   losses = [l.cuda() for l in losses]
+        losses.append(reconstruction_loss(loss_type))
 
     def total_loss(results, targets):
-        """Cacluate total loss
+        """Calculate total loss
             total_loss = sum_i losses_i(results_i, targets_i)
         Args:
             results(tensor): nn outputs.
@@ -181,20 +161,19 @@ def clean(save_path, save_count=10):
         print('removing', f)
         os.remove(f)
 
-def save_train(path, model, optimizer, schedular=None, epoch=None):
+def save_train(path, model, optimizer, scheduler=None, epoch=None):
     state = {
         'model': model.state_dict(),
         'optimizer': optimizer.state_dict(),
     }
-    #TODO(hillel): fix this so we can save schedular state
-    #if schedular is not None:
-    #    state['schedular'] = schedular.state_dict()
+    if scheduler is not None:
+        state['scheduler'] = scheduler.state_dict()
     if epoch is not None:
         state['epoch'] = epoch
     torch.save(state, os.path.join(path, 'epoch_{}'.format(epoch)))
     return os.path.join(path, 'epoch_{}'.format(epoch))
 
-def load_train(path, model, optimizer, schedular=None):
+def load_train(path, model, optimizer, scheduler=None):
     state = torch.load(path)
 
     pretrained = state['model']
@@ -205,12 +184,12 @@ def load_train(path, model, optimizer, schedular=None):
         except Exception as e:
             print(f'did not restore optimizer due to error {e}')
     else:
-        print('Optimizer not inilized since no data for it exists in supplied path')
-    if schedular is not None:
-        if 'schedular' in state:
-            schedular.load_state_dict(state['schedular'])
+        print('Optimizer not initialized since no data for it exists in supplied path')
+    if scheduler is not None:
+        if 'scheduler' in state:
+            scheduler.load_state_dict(state['scheduler'])
         else:
-            print('Schedular not inilized since no data for it exists in supplied path')
+            print('Scheduler not initialized since no data for it exists in supplied path')
     if 'epoch' in state:
         e = state['epoch']
     else:
@@ -224,10 +203,9 @@ def load_eval(path, model):
 
     state = torch.load(path, map_location='cpu')
     pretrained = state['model']
-    current = model.state_dict()
 
-    # very dangerous!!!
-    pretrained = {k:v for k, v in zip(current.keys(), pretrained.values())}
+    # Load state dict with strict=False to allow for model architecture changes
+    # This will warn about missing or unexpected keys
     model.load_state_dict(pretrained, strict=False)
     model.eval()
 

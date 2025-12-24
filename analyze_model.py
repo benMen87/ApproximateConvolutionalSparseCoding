@@ -48,13 +48,13 @@ def plot_dict(model, save_path):
     my_subplot(cd, [kers_per_row, kers_per_col], 'conv-dictionary', save_path)
 
 
-def evaluate_thrshold(model, save_path, name):
-    thrshold_avg = [float(model.softthrsh0.thrshold.mean())]
+def evaluate_threshold(model, save_path, name):
+    threshold_avg = [float(model.softthrsh0.threshold.mean())]
 
     for thrsh in model.softthrsh1:
-        thrshold_avg.append(float(thrsh.thrshold.mean()))
+        threshold_avg.append(float(thrsh.threshold.mean()))
 
-    plt.plot(range(len(thrshold_avg)), thrshold_avg, '*')
+    plt.plot(range(len(threshold_avg)), threshold_avg, '*')
     plt.savefig(os.path.join(save_path, name))
     plt.clf()
 
@@ -62,7 +62,7 @@ def evaluate_csc(model, img_n, save_path, im_name):
     """Plot CSC
     """
     sparse_code_delta = []
-    for csc, csc_res, lista_iter in model.forward_enc_generataor(img_n.unsqueeze(0)):
+    for csc, csc_res, lista_iter in model.forward_enc_generator(img_n.unsqueeze(0)):
         _, depth, rows, cols = csc.shape
         sc_per_col = int(np.sqrt(depth))
         sc_per_row = sc_per_col + (depth - sc_per_col**2)
@@ -94,7 +94,7 @@ def evaluate(args):
 
     plot_dict(model, log_dir)
     evaluate_csc(model, testset[7][0], log_dir, testset.image_filenames[7])
-    evaluate_thrshold(model, log_dir, 'thrshold')
+    evaluate_threshold(model, log_dir, 'threshold')
 
 def main():
     """Run test on trained model.

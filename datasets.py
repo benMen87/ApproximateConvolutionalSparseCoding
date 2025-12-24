@@ -1,5 +1,4 @@
 from __future__ import division
-from torch.autograd import Variable
 import torch.utils.data as data
 from functools import partial
 import torch
@@ -14,7 +13,7 @@ def is_image_file(filename):
 
 def load_img(filepath, convert='L'):
     img = np.array(Image.open(filepath).convert(convert))
-    img = Variable(torch.from_numpy(img[None,...]),requires_grad=False).float()
+    img = torch.from_numpy(img[None,...]).float()
     return img
 
 def find_file_in_folder(folder, file_name):
@@ -110,7 +109,7 @@ class DatasetFromNPZ(data.Dataset):
         self._inputs_transform = inputs_transform
 
     def __getitem__(self, index):
-        _targets = Variable(torch.from_numpy(self._targets[index]).float(), requires_grad=False)
+        _targets = torch.from_numpy(self._targets[index]).float()
         _inputs = self._inputs_transform(_targets)
         if self._use_cuda:
             _targets = _targets.cuda()
