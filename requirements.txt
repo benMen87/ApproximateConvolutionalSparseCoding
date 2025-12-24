@@ -1,0 +1,11 @@
+# Core dependencies
+torch>=1.7.0
+torchvision>=0.8.0
+numpy>=1.19.0
+matplotlib>=3.3.0
+scipy>=1.5.0
+Pillow>=8.3.2
+ipython>=7.0.0
+
+# Development dependencies
+pybm3d>=3.0.0

@@ -97,9 +97,9 @@ class LISTAConvDict(nn.Module):
             csc = self.softthrsh1[lyr](csc + sc_residual)
         return csc
 
-    def forward_enc_generataor(self, inputs):
-        """forwar encoder generator
-        Use for debug and anylize model.
+    def forward_enc_generator(self, inputs):
+        """forward encoder generator
+        Use for debug and analyze model.
         """
         csc = self.softthrsh0(self.encode_conv0(inputs))
 
@@ -135,9 +135,8 @@ class SoftshrinkTrainable(nn.Module):
         self._lambd = _lambd
 
     @property
-    def thrshold(self):
+    def threshold(self):
         return self._lambd
-#        self._lambd.register_hook(print)
 
     def forward(self, inputs):
         """ sign(inputs) * (abs(inputs)  - thrshold)"""

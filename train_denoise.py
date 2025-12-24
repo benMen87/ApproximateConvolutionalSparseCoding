@@ -14,8 +14,8 @@ from torch.utils.data import DataLoader
 from convsparse_net import LISTAConvDict
 import common
 from common import save_train, load_train, clean, to_np
-from common import gaussian, normilize, nhwc_to_nchw
-from common import reconsturction_loss, init_model_dir
+from common import gaussian, normalize, nhwc_to_nchw
+from common import reconstruction_loss, init_model_dir
 from test_denoise import plot_res
 from datasets import  DatasetFromNPZ
 import arguments
@@ -32,9 +32,9 @@ def _pprint(stuff):
 def get_train_valid_loaders(dataset_path, batch_size, noise):
 
     def pre_process_fn(_x):
-        return normilize(nhwc_to_nchw(_x), 255)
+        return normalize(nhwc_to_nchw(_x), 255)
     def input_process_fn(_x):
-        return gaussian(_x, is_training=True, mean=0, stddev=normilize(noise, 255))
+        return gaussian(_x, is_training=True, mean=0, stddev=normalize(noise, 255))
 
     train_loader = DatasetFromNPZ(npz_path=dataset_path,
                               key='TRAIN', use_cuda=USE_CUDA,
@@ -64,8 +64,6 @@ def step(model, img, img_n, optimizer, criterion):
     loss = criterion(results, targets)
     loss.backward()
 
-    # torch.nn.utils.clip_grad_value_(model.decode_conv1.parameters(), 15)
-
     optimizer.step()
 
     return float(loss), output.cpu()
@@ -88,39 +86,39 @@ def maybe_save_model(
         clean(save_path, save_count=10)
     elif curr_val < max(other_values) - 1:
         load_train(path, model, opt)
-        schd.step()
-        print(f'model diverge reloded last model state current lr {schd.get_lr()}')
+        print(f'model diverge reloaded last model state current lr {schd.get_last_lr()}')
 
     return path
 
 def run_valid(model, data_loader, criterion, logdir, name, should_plot=False):
     """
-    Run over whole valid set calculate psnr and critirion loss.
+    Run over whole valid set calculate psnr and criterion loss.
     """
     loss = 0
     psnr = 0
 
     def _to_np(x): return to_np(x)[..., 20:-20, 20:-20]
 
-    for img, img_n in data_loader:
-        _out, _ = model(img_n)
-        loss += float(criterion(img.data[..., 20:-20, 20:-20],
-                                _out.data[..., 20:-20, 20:-20]))
+    with torch.no_grad():
+        for img, img_n in data_loader:
+            _out, _ = model(img_n)
+            loss += float(criterion(img.data[..., 20:-20, 20:-20],
+                                    _out.data[..., 20:-20, 20:-20]))
 
-        np_output = np.clip(_to_np(_out), 0, 1)
-        np_img = _to_np(img)
-        psnr += common.psnr(np_img, np_output)
+            np_output = np.clip(_to_np(_out), 0, 1)
+            np_img = _to_np(img)
+            psnr += common.psnr(np_img, np_output)
 
-    img, img_n = data_loader.dataset[0]
-    output, _ = model(img_n.unsqueeze(0))
-    if should_plot:
-        plot_res(
-            _to_np(img),
-            _to_np(img_n),
-            _to_np(output),
-            name,
-            logdir
-        )
+        img, img_n = data_loader.dataset[0]
+        output, _ = model(img_n.unsqueeze(0))
+        if should_plot:
+            plot_res(
+                _to_np(img),
+                _to_np(img_n),
+                _to_np(output),
+                name,
+                logdir
+            )
     return loss / len(data_loader), psnr / len(data_loader)
 
 def plot_losses(train_loss, valid_loss, valid_psnr, path):
@@ -139,29 +137,14 @@ def plot_losses(train_loss, valid_loss, valid_psnr, path):
 
 def train(model, args):
 
-    #optimizer = optim.Adam(
-    #    [
-    #        {'params': model.softthrsh0.parameters()},
-    #        {'params': model.softthrsh1.parameters()},
-    #        {'params': model.encode_conv0.parameters()},
-    #        {'params': model.encode_conv1.parameters()},
-    #        {'params': model.decode_conv1.parameters(), 'lr':
-    #         args['learning_rate']},
-    #    ],
-    #    lr=args['learning_rate']
-    #)
     optimizer = optim.Adam(
         model.parameters(),
         lr=args['learning_rate']
     )
-    break_down_sum = sum(map(common.count_parameters, [model.softthrsh0, model.encode_conv0,
-                                                       model.softthrsh1, model.encode_conv1,
-                                                       model.decode_conv1]))
 
-    # ReduceLROnPlateau(optimizer, 'min', verbose=True)
     train_loader, valid_loader = get_train_valid_loaders(args['dataset_path'], args['batch_size'], args['noise'])
 
-    valid_loss = reconsturction_loss(use_cuda=True)
+    valid_loss = reconstruction_loss(use_cuda=True)
 
     criterion = common.get_criterion(
         losses_types=['l1', 'l2'] , #, 'msssim'],
@@ -181,9 +164,6 @@ def train(model, args):
     valid_every = int(0.1 * len(train_loader))
 
     gamma = 0.1
-    #if model.ista_iters < 20 else\
-    #        0.1 * (20 / args['noise']) * (1 / model.ista_iters)**0.5
-
     scheduler = lr_scheduler.StepLR(optimizer, step_size=3, gamma=gamma)
 
     if args.get('load_path', '') != '':
@@ -212,8 +192,6 @@ def train(model, args):
                     itr == valid_every
                 )
 
-                scheduler.step(_v_loss)
-
                 model_path = maybe_save_model(
                     model,
                     optimizer,
@@ -231,6 +209,9 @@ def train(model, args):
                 print("epoch {} train loss: {} valid loss: {}, valid psnr: {}".format(e,
                       running_loss / valid_every, _v_loss, _v_psnr))
                 running_loss = 0
+
+        # Step the scheduler at the end of each epoch
+        scheduler.step()
 
     plot_losses(_train_loss, _valid_loss, _valid_psnr, args['save_dir'])
     return model_path, _valid_loss[-1], _valid_psnr[-1]
